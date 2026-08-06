@@ -1,0 +1,35 @@
+# ============================================================
+# Multilingual AI Video Summarizer - Pinned Dependencies
+# ============================================================
+
+# Google Gemini SDK (unified, latest)
+google-genai==0.8.0
+
+# Streamlit UI framework
+streamlit==1.35.0
+
+# Environment variable management
+python-dotenv==1.0.1
+
+# File type detection
+python-magic-bin==0.4.14; sys_platform == "win32"
+python-magic==0.4.27; sys_platform != "win32"
+
+# Rich terminal output (used in CLI mode)
+rich==13.7.0
+
+# HTTP / retry utilities
+tenacity==8.3.0
+httpx==0.27.0
+
+# Automatic codec transcoding (HEVC/H.265 → H.264 fallback)
+ffmpeg-python==0.2.0
+
+# Markdown rendering support
+markdown==3.6.0
+
+# Typing extensions
+typing-extensions==4.12.0
+
+# Microphone recording directly in UI
+audio-recorder-streamlit==0.0.10

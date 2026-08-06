@@ -1,0 +1,37 @@
+.venv
+venv
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache
+.coverage
+htmlcov
+.tmp
+tmp_uploads
+keys.db
+.git
+.gitignore
+.env
+.idea
+.vscode
+*.log
+
+# Test suite — not needed in production image
+tests/
+
+# Deployment scripts — not needed in production image
+scripts/
+
+# Documentation
+docs/
+
+# Large build artifacts
+deploy_safe.zip
+
+# Project config files (not needed at runtime)
+pyproject.toml
+pyrightconfig.json
+README.md
+runtime.txt
+Procfile

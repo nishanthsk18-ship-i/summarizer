@@ -1,0 +1,2032 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Audio Recorder v2 — Professional DSP</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Fira+Code:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+/* ── Reset ──────────────────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  background: transparent;
+  color: #e2e8f0;
+  overflow-x: hidden;
+}
+
+/* ── Glassmorphism Card ─────────────────────────────────────────────────── */
+.recorder-card {
+  background: rgba(15, 15, 25, 0.85);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4),
+              inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  border-radius: 24px;
+  overflow: hidden;
+  position: relative;
+  margin: 4px;
+  transition: border-color 0.4s ease;
+}
+.recorder-card.classroom-active {
+  border-color: rgba(99, 179, 237, 0.25);
+}
+
+/* ── Countdown Overlay ──────────────────────────────────────────────────── */
+.countdown-overlay {
+  display: none;
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border-radius: 24px;
+  z-index: 100;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 8px;
+}
+.countdown-overlay.visible { display: flex; }
+
+.countdown-num {
+  font-size: 96px;
+  font-weight: 700;
+  color: white;
+  text-shadow: 0 0 40px rgba(99, 179, 237, 0.8);
+  animation: cdown-anim 0.8s ease-out;
+  line-height: 1;
+}
+@keyframes cdown-anim {
+  0%   { transform: scale(1.5); opacity: 0; }
+  40%  { opacity: 1; }
+  100% { transform: scale(1.0); opacity: 1; }
+}
+.countdown-sub {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.5);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+/* ── Header ─────────────────────────────────────────────────────────────── */
+.card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.mic-wrap {
+  position: relative;
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+}
+.mic-wrap svg { width: 100%; height: 100%; }
+.mic-glow {
+  position: absolute;
+  inset: -5px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  transition: border-color 0.3s, box-shadow 0.3s;
+  pointer-events: none;
+}
+.rec-active .mic-glow {
+  border-color: rgba(229, 62, 62, 0.6);
+  box-shadow: 0 0 14px rgba(229, 62, 62, 0.5);
+  animation: mic-pulse 1.2s ease-in-out infinite;
+}
+@keyframes mic-pulse {
+  0%, 100% { box-shadow: 0 0 10px rgba(229,62,62,0.4); }
+  50%       { box-shadow: 0 0 22px rgba(229,62,62,0.7); }
+}
+.header-title {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+/* ── Status Badge ───────────────────────────────────────────────────────── */
+.status-badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 500;
+  transition: all 0.3s ease;
+}
+.status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  transition: background 0.3s, box-shadow 0.3s;
+  flex-shrink: 0;
+}
+.badge-idle     .status-dot { background: #718096; }
+.badge-idle     .status-label { color: #a0aec0; }
+.badge-checking .status-dot { background: #ecc94b; box-shadow: 0 0 8px rgba(236,201,75,0.8); animation: rec-blink 0.8s infinite; }
+.badge-checking .status-label { color: #ecc94b; }
+.badge-recording .status-dot {
+  background: #fc8181;
+  box-shadow: 0 0 8px rgba(252,129,129,0.9);
+  animation: rec-blink 1s ease-in-out infinite;
+}
+.badge-recording .status-label { color: #fc8181; }
+@keyframes rec-blink {
+  0%, 100% { opacity: 1; } 50% { opacity: 0.35; }
+}
+.badge-paused .status-dot { background: #ecc94b; }
+.badge-paused .status-label { color: #ecc94b; }
+.badge-done   .status-dot { background: #68d391; }
+.badge-done   .status-label { color: #68d391; }
+
+/* ── Sample Rate & Mic Check Banners ────────────────────────────────────── */
+.banner-container {
+  padding: 8px 20px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.sr-warning-badge {
+  display: none;
+  font-size: 11px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: rgba(246, 173, 85, 0.12);
+  border: 1px solid rgba(246, 173, 85, 0.3);
+  color: #f6ad55;
+  line-height: 1.4;
+}
+.sr-warning-badge.visible { display: block; }
+
+.mic-check-banner {
+  display: none;
+  padding: 10px 14px;
+  border-radius: 10px;
+  font-size: 11px;
+  line-height: 1.4;
+  transition: all 0.3s ease;
+}
+.mic-check-banner.visible { display: block; }
+.mic-check-banner .mc-title { font-weight: 600; font-size: 12px; margin-bottom: 2px; }
+.mic-check-banner .mc-tip   { font-size: 10px; opacity: 0.8; margin-top: 2px; }
+.mic-check-banner .mc-level { font-family: 'Fira Code', monospace; font-size: 10px; opacity: 0.75; float: right; }
+
+/* ── Canvas Section ─────────────────────────────────────────────────────── */
+.canvas-section { padding: 12px 20px 0; }
+
+.canvas-wrapper {
+  position: relative;
+  border-radius: 12px;
+  overflow: hidden;
+  background: rgba(0, 0, 0, 0.3);
+  height: 180px;
+}
+#freq-canvas {
+  position: absolute;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  opacity: 0.2;
+  z-index: 0;
+}
+#wave-canvas {
+  position: absolute;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  z-index: 1;
+}
+.center-axis {
+  position: absolute;
+  top: 50%; left: 0; right: 0;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.08);
+  z-index: 2;
+  pointer-events: none;
+}
+
+/* ── Filter Chain Diagram ───────────────────────────────────────────────── */
+.filter-chain {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 20px 0;
+  flex-wrap: wrap;
+}
+.filter-pill {
+  padding: 2px 9px;
+  border-radius: 10px;
+  font-size: 10px;
+  font-weight: 700;
+  background: rgba(99,179,237,0.1);
+  border: 1px solid rgba(99,179,237,0.25);
+  color: rgba(99,179,237,0.85);
+  letter-spacing: 0.04em;
+  box-shadow: 0 0 6px rgba(99,179,237,0.1);
+}
+.filter-arrow { color: rgba(99,179,237,0.35); font-size: 11px; }
+
+/* ── Level Meter ────────────────────────────────────────────────────────── */
+.level-section {
+  padding: 12px 20px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.level-label {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.35);
+}
+.level-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 24px;
+}
+.level-bar {
+  width: 4px;
+  height: 8px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.08);
+  flex-shrink: 0;
+  transition: background 0.06s, height 0.06s;
+}
+
+/* ── Noise Gate Slider ──────────────────────────────────────────────────── */
+.noise-gate-section {
+  padding: 10px 20px 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.ng-label {
+  font-size: 10px;
+  font-weight: 600;
+  color: rgba(255,255,255,0.35);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  white-space: nowrap;
+  min-width: 108px;
+}
+.ng-slider {
+  flex: 1;
+  -webkit-appearance: none;
+  appearance: none;
+  height: 3px;
+  border-radius: 2px;
+  background: rgba(255,255,255,0.14);
+  outline: none;
+  cursor: pointer;
+}
+.ng-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 14px; height: 14px;
+  border-radius: 50%;
+  background: #63b3ed;
+  cursor: pointer;
+  box-shadow: 0 0 6px rgba(99,179,237,0.6);
+}
+.ng-val {
+  font-size: 10px;
+  font-family: 'Fira Code', monospace;
+  color: rgba(99,179,237,0.8);
+  min-width: 40px;
+  text-align: right;
+}
+
+/* ── VAD Indicator ──────────────────────────────────────────────────────── */
+.vad-section {
+  padding: 6px 20px 2px;
+  min-height: 26px;
+  display: flex;
+  align-items: center;
+}
+.vad-indicator {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  transition: all 0.2s;
+}
+.vad-dot {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  transition: background 0.2s, box-shadow 0.2s;
+}
+.vad-speaking .vad-dot  { background: #68d391; box-shadow: 0 0 7px rgba(104,211,145,0.8); }
+.vad-speaking .vad-text { color: #68d391; }
+.vad-silence  .vad-dot  { background: #4a5568; }
+.vad-silence  .vad-text { color: #718096; }
+
+/* ── Timer Section ──────────────────────────────────────────────────────── */
+.timer-section {
+  display: flex;
+  justify-content: center;
+  padding: 12px 20px 4px;
+}
+.timer-ring-wrap {
+  position: relative;
+  width: 120px;
+  height: 120px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.timer-svg {
+  position: absolute;
+  top: 0; left: 0;
+  transform: rotate(-90deg);
+}
+.timer-track {
+  fill: none;
+  stroke: rgba(255,255,255,0.06);
+  stroke-width: 3;
+}
+.timer-progress {
+  fill: none;
+  stroke: #63b3ed;
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-dasharray: 301.593;
+  stroke-dashoffset: 301.593;
+  transition: stroke-dashoffset 0.5s linear;
+}
+.timer-display {
+  font-family: 'Fira Code', 'SF Mono', 'Consolas', monospace;
+  font-size: 48px;
+  font-weight: 300;
+  color: white;
+  text-shadow: 0 0 20px rgba(99,179,237,0.8);
+  letter-spacing: 2px;
+  line-height: 1;
+  z-index: 1;
+  position: relative;
+}
+
+/* ── Buttons ────────────────────────────────────────────────────────────── */
+.btn-row {
+  display: flex;
+  gap: 10px;
+  padding: 10px 20px 14px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+.rec-btn {
+  border: none;
+  border-radius: 50px;
+  padding: 12px 28px;
+  font-family: 'Inter', system-ui, sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+  color: white;
+  transition: all 0.2s cubic-bezier(0.4,0,0.2,1);
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.rec-btn:hover:not(:disabled)  { transform: translateY(-2px); filter: brightness(1.15); }
+.rec-btn:active:not(:disabled) { transform: translateY(0); }
+.rec-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  filter: grayscale(0.5);
+  box-shadow: none !important;
+  animation: none !important;
+}
+
+.btn-start {
+  background: linear-gradient(135deg, #E53E3E, #C53030);
+  box-shadow: 0 0 20px rgba(229,62,62,0.5);
+  animation: btn-pulse 1.5s ease-in-out infinite;
+}
+@keyframes btn-pulse {
+  0%, 100% { transform: scale(1.0);  box-shadow: 0 0 20px rgba(229,62,62,0.5); }
+  50%       { transform: scale(1.03); box-shadow: 0 0 28px rgba(229,62,62,0.7); }
+}
+.btn-start:hover:not(:disabled) { animation: none; transform: translateY(-2px); box-shadow: 0 0 28px rgba(229,62,62,0.7); }
+
+.btn-pause  { background: linear-gradient(135deg, #D69E2E, #B7791F); box-shadow: 0 0 20px rgba(214,158,46,0.4); }
+.btn-stop   { background: linear-gradient(135deg, #3182CE, #2B6CB0); box-shadow: 0 0 20px rgba(49,130,206,0.4); }
+.btn-resume { background: linear-gradient(135deg, #38A169, #276749); box-shadow: 0 0 20px rgba(56,161,105,0.4); }
+.btn-ghost  {
+  background: transparent;
+  border: 1px solid rgba(255,255,255,0.25);
+  box-shadow: none;
+  color: rgba(255,255,255,0.7);
+}
+.btn-ghost:hover:not(:disabled) { border-color: rgba(255,255,255,0.5); background: rgba(255,255,255,0.05); }
+
+.rec-dot {
+  width: 10px; height: 10px;
+  border-radius: 50%;
+  background: white;
+  animation: dot-pulse 1.5s ease-in-out infinite;
+  flex-shrink: 0;
+}
+@keyframes dot-pulse {
+  0%, 100% { transform: scale(1); }
+  50%       { transform: scale(1.35); }
+}
+
+/* ── Segments Timeline ──────────────────────────────────────────────────── */
+.timeline-section {
+  padding: 0 20px 10px;
+  display: none;
+}
+.timeline-section.visible { display: block; }
+.timeline-label {
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: rgba(255,255,255,0.3);
+  margin-bottom: 5px;
+}
+.timeline-bar {
+  height: 12px;
+  background: rgba(255,255,255,0.04);
+  border-radius: 6px;
+  overflow: hidden;
+  display: flex;
+}
+.seg-speaking { background: #63b3ed; }
+.seg-silence  { background: rgba(255,255,255,0.06); }
+.seg-paused   { background: #ecc94b; }
+
+/* ── Keyboard Hints ─────────────────────────────────────────────────────── */
+.kb-hints {
+  padding: 4px 20px 12px;
+  text-align: center;
+  font-size: 10px;
+  color: rgba(255,255,255,0.22);
+  letter-spacing: 0.04em;
+  transition: color 0.5s;
+}
+.kb-hints.lit { color: rgba(255,255,255,0.55); }
+.kb-key {
+  display: inline-block;
+  padding: 1px 5px;
+  border: 1px solid rgba(255,255,255,0.2);
+  border-radius: 3px;
+  font-size: 9px;
+  margin: 0 2px;
+}
+
+/* ── Compression Progress ───────────────────────────────────────────────── */
+.compress-section {
+  display: none;
+  padding: 10px 20px;
+  align-items: center;
+  gap: 10px;
+}
+.compress-section.visible { display: flex; }
+.compress-label {
+  font-size: 12px;
+  color: rgba(255,255,255,0.55);
+  flex: 1;
+}
+.compress-track {
+  width: 80px; height: 4px;
+  background: rgba(255,255,255,0.1);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.compress-fill {
+  height: 100%;
+  background: #63b3ed;
+  border-radius: 2px;
+  width: 0%;
+  transition: width 0.3s;
+}
+
+/* ── Post-Recording Panel ───────────────────────────────────────────────── */
+.post-panel {
+  display: none;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px 20px 20px;
+  border-top: 1px solid rgba(255,255,255,0.06);
+  animation: slide-up 0.3s ease-out;
+}
+.post-panel.visible { display: flex; }
+@keyframes slide-up {
+  from { opacity: 0; transform: translateY(14px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Custom Audio Player */
+.audio-player {
+  background: rgba(0,0,0,0.3);
+  border-radius: 12px;
+  padding: 12px 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.play-btn {
+  width: 38px; height: 38px;
+  border-radius: 50%;
+  border: none;
+  background: linear-gradient(135deg, #3182CE, #2B6CB0);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: all 0.2s;
+}
+.play-btn:hover { transform: scale(1.08); box-shadow: 0 0 12px rgba(49,130,206,0.5); }
+.play-btn svg { fill: white; overflow: visible; }
+.player-controls { flex: 1; display: flex; flex-direction: column; gap: 5px; }
+.scrubber-track {
+  width: 100%; height: 3px;
+  background: rgba(255,255,255,0.14);
+  border-radius: 2px;
+  position: relative;
+  cursor: pointer;
+}
+.scrubber-fill {
+  height: 100%;
+  background: #63b3ed;
+  border-radius: 2px;
+  width: 0%;
+  pointer-events: none;
+}
+.scrubber-thumb {
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 11px; height: 11px;
+  border-radius: 50%;
+  background: #63b3ed;
+  box-shadow: 0 0 6px rgba(99,179,237,0.7);
+  left: 0%;
+  pointer-events: none;
+}
+.player-time {
+  font-family: 'Fira Code', Consolas, monospace;
+  font-size: 10px;
+  color: rgba(255,255,255,0.45);
+  text-align: right;
+}
+
+/* Quality Score */
+.quality-section {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.q-badge {
+  width: 66px; height: 66px;
+  border-radius: 50%;
+  border: 3px solid;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.q-num   { font-size: 22px; font-weight: 700; line-height: 1; }
+.q-lbl   { font-size: 8px; text-transform: uppercase; letter-spacing: 0.05em; margin-top: 2px; }
+.q-excel { border-color: #68d391; color: #68d391; }
+.q-good  { border-color: #ecc94b; color: #ecc94b; }
+.q-fair  { border-color: #f6ad55; color: #f6ad55; }
+.q-poor  { border-color: #fc8181; color: #fc8181; }
+.q-info-title { font-size: 13px; font-weight: 600; color: #e2e8f0; }
+.q-info-tip   { font-size: 11px; color: rgba(255,255,255,0.45); margin-top: 3px; }
+
+.clip-report {
+  font-size: 11px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  line-height: 1.5;
+}
+.clip-ok   { background: rgba(104,211,145,0.07); color: #68d391; border: 1px solid rgba(104,211,145,0.2); }
+.clip-warn { background: rgba(252,129,129,0.07); color: #fc8181; border: 1px solid rgba(252,129,129,0.2); }
+
+.post-actions { display: flex; gap: 10px; }
+.post-actions .rec-btn { flex: 1; justify-content: center; }
+</style>
+</head>
+<body>
+
+<!-- ── Countdown Overlay ─────────────────────────────────────────────────── -->
+<div class="countdown-overlay" id="cntOverlay">
+  <div class="countdown-num" id="cntNum">3</div>
+  <div class="countdown-sub">Get Ready…</div>
+</div>
+
+<!-- ── Main Card ─────────────────────────────────────────────────────────── -->
+<div class="recorder-card" id="recCard">
+
+  <!-- Header -->
+  <div class="card-header">
+    <div class="header-left">
+      <div class="mic-wrap" id="micWrap">
+        <div class="mic-glow"></div>
+        <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect x="9" y="2" width="6" height="12" rx="3" fill="#63b3ed"/>
+          <path d="M5 11a7 7 0 0014 0" stroke="#63b3ed" stroke-width="1.5" stroke-linecap="round"/>
+          <line x1="12" y1="18" x2="12" y2="22" stroke="#63b3ed" stroke-width="1.5" stroke-linecap="round"/>
+          <line x1="9" y1="22" x2="15" y2="22" stroke="#63b3ed" stroke-width="1.5" stroke-linecap="round"/>
+        </svg>
+      </div>
+      <span class="header-title">Audio Recorder v2</span>
+    </div>
+    <div class="status-badge badge-idle" id="statusBadge">
+      <div class="status-dot"></div>
+      <span class="status-label" id="statusLabel">Ready</span>
+    </div>
+  </div>
+
+  <!-- Banners Section -->
+  <div class="banner-container">
+    <div class="sr-warning-badge" id="srWarningBadge"></div>
+    <div class="mic-check-banner" id="micCheckBanner"></div>
+  </div>
+
+  <!-- Canvas -->
+  <div class="canvas-section">
+    <div class="canvas-wrapper">
+      <canvas id="freq-canvas"></canvas>
+      <canvas id="wave-canvas"></canvas>
+      <div class="center-axis"></div>
+    </div>
+  </div>
+
+  <!-- Filter Chain Diagram -->
+  <div class="filter-chain" id="filterChain">
+    <span class="filter-pill" id="pillHp">HP80</span><span class="filter-arrow">→</span>
+    <span class="filter-pill" id="pillCut">CUT300</span><span class="filter-arrow">→</span>
+    <span class="filter-pill" id="pillBoost">BOOST2.5K</span><span class="filter-arrow">→</span>
+    <span class="filter-pill" id="pillComp">COMP</span><span class="filter-arrow">→</span>
+    <span class="filter-pill" id="pillLp">LP8K</span><span class="filter-arrow">→</span>
+    <span class="filter-pill" id="pillGain">GAIN</span>
+  </div>
+
+  <!-- Level Meter -->
+  <div class="level-section">
+    <div class="level-label">Input Level</div>
+    <div class="level-bars" id="levelBars"></div>
+  </div>
+
+  <!-- Noise Gate Slider -->
+  <div class="noise-gate-section">
+    <span class="ng-label">Noise Gate</span>
+    <input type="range" class="ng-slider" id="ngSlider"
+           min="0.001" max="0.05" step="0.001" value="0.008">
+    <span class="ng-val" id="ngVal">0.008</span>
+  </div>
+
+  <!-- VAD Indicator -->
+  <div class="vad-section">
+    <div class="vad-indicator vad-silence" id="vadInd">
+      <div class="vad-dot"></div>
+      <span class="vad-text" id="vadTxt">○ Silence</span>
+    </div>
+  </div>
+
+  <!-- Timer -->
+  <div class="timer-section">
+    <div class="timer-ring-wrap">
+      <svg class="timer-svg" width="120" height="120" viewBox="0 0 120 120">
+        <circle class="timer-track"    cx="60" cy="60" r="48"/>
+        <circle class="timer-progress" cx="60" cy="60" r="48" id="timerRing"/>
+      </svg>
+      <div class="timer-display" id="timerDisp">00:00</div>
+    </div>
+  </div>
+
+  <!-- Button Row -->
+  <div class="btn-row" id="btnRow">
+    <button class="rec-btn btn-start" id="btnStart" onclick="handleStart()">
+      <div class="rec-dot"></div>START RECORDING
+    </button>
+  </div>
+
+  <!-- Segments Timeline -->
+  <div class="timeline-section" id="tlSection">
+    <div class="timeline-label">Recording Timeline</div>
+    <div class="timeline-bar" id="tlBar"></div>
+  </div>
+
+  <!-- Compression Progress -->
+  <div class="compress-section" id="cmpSection">
+    <span class="compress-label" id="cmpLabel">Optimizing recording size…</span>
+    <div class="compress-track"><div class="compress-fill" id="cmpFill"></div></div>
+  </div>
+
+  <!-- Post-Recording Panel -->
+  <div class="post-panel" id="postPanel">
+    <!-- Custom audio player -->
+    <div class="audio-player">
+      <button class="play-btn" id="playBtn">
+        <svg width="14" height="16" viewBox="0 0 14 16" id="playSvg">
+          <polygon points="2,1 12,8 2,15" fill="white"/>
+        </svg>
+      </button>
+      <div class="player-controls">
+        <div class="scrubber-track" id="scrubTrack">
+          <div class="scrubber-fill"  id="scrubFill"></div>
+          <div class="scrubber-thumb" id="scrubThumb"></div>
+        </div>
+        <div class="player-time" id="playerTime">0:00 / 0:00</div>
+      </div>
+    </div>
+
+    <!-- Quality score -->
+    <div class="quality-section" id="qualSection"></div>
+
+    <!-- Clip report -->
+    <div class="clip-report" id="clipReport"></div>
+
+    <!-- Action buttons -->
+    <div class="post-actions">
+      <button class="rec-btn btn-stop"  id="btnUse">✓ Use This Recording</button>
+      <button class="rec-btn btn-ghost" id="btnAgain">↺ Record Again</button>
+    </div>
+  </div>
+
+  <!-- Keyboard Hints -->
+  <div class="kb-hints" id="kbHints">
+    <span class="kb-key">Space</span> Start/Pause &nbsp;
+    <span class="kb-key">Esc</span> Stop &nbsp;
+    <span class="kb-key">R</span> Record Again
+  </div>
+
+</div><!-- /recorder-card -->
+
+<script>
+// ═══════════════════════════════════════════════════════════════════════════
+// STREAMLIT COMPONENT PROTOCOL
+// ═══════════════════════════════════════════════════════════════════════════
+
+const SL = {
+  send(type, extra) {
+    window.parent.postMessage({ isStreamlitMessage: true, type, ...extra }, '*');
+  },
+  ready()       { this.send('streamlit:componentReady', { apiVersion: 1 }); },
+  setValue(v)   { this.send('streamlit:setComponentValue', { value: v }); },
+  setHeight(h)  { this.send('streamlit:setFrameHeight', { height: h }); }
+};
+
+window.addEventListener('message', (e) => {
+  if (e.data && e.data.type === 'streamlit:render') onRender(e.data.args || {});
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// CONSTANTS & CODEC PRIORITY
+// ═══════════════════════════════════════════════════════════════════════════
+
+const CIRC = 2 * Math.PI * 48;   // SVG ring circumference ≈ 301.59
+
+// FIX 2: Codec Priority Cascade
+const CODEC_PRIORITY = [
+  "audio/webm;codecs=opus",      // Best: Opus in WebM — highest speech quality
+  "audio/ogg;codecs=opus",       // Good: Opus in OGG — near identical
+  "audio/webm;codecs=pcm",       // Lossless fallback
+  "audio/mp4;codecs=mp4a.40.2",  // AAC-LC in MP4 — Safari compatible
+  "audio/mp4",                   // Generic MP4 audio — broad compat
+  "audio/webm"                   // Generic WebM — last resort
+];
+
+function selectBestCodec() {
+  let selected = "";
+  for (const codec of CODEC_PRIORITY) {
+    if (typeof MediaRecorder !== "undefined" && MediaRecorder.isTypeSupported(codec)) {
+      selected = codec;
+      console.log("[MIC QUALITY] Selected codec:", codec);
+      break;
+    }
+  }
+  if (!selected) {
+    console.warn("[MIC QUALITY] No preferred codec supported, using browser default");
+  }
+  return selected;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════════════════════════════════
+
+// Props (from Streamlit)
+let isClassroom      = false;
+let maxDuration      = 3600;
+let noiseGate        = 0.008;
+
+// Machine state
+let appState = 'IDLE'; // IDLE | CHECKING | COUNTDOWN | RECORDING | PAUSED | DONE | COMPRESSING
+
+// Web Audio API & Nodes (FIX 4 & FIX 8)
+let audioCtx          = null;
+let selectedMimeType  = "";
+let processedStream   = null;
+
+// MediaRecorder
+let mediaRec    = null;
+let chunks      = [];
+let finalBlob   = null;
+let hasSent     = false;
+let curBitrate  = 128000;
+
+// Timing & Silence Check (FIX 7)
+let recStart        = null;
+let pausedMs        = 0;
+let pauseAt         = null;
+let elapsedSec      = 0;
+let timerInt        = null;
+let bitrateInt      = null;
+let silenceTimeout  = null;
+let consecutiveSilenceFrames = 0;
+
+// Gate hysteresis (FIX 5)
+let gateOpen        = false;
+const gateHysteresis= 0.002;
+
+// Canvas
+let rafId       = null;
+let frame       = 0;
+const waveC     = document.getElementById('wave-canvas');
+const freqC     = document.getElementById('freq-canvas');
+const wCtx      = waveC.getContext('2d');
+const fCtx      = freqC.getContext('2d');
+
+// VAD
+let vadState    = 'silence';
+let vadTimer    = null;
+
+// Segments & Clips
+let segments    = [];
+let clips       = [];
+
+// Quality metrics
+let speakRMS    = [];
+let silRMS      = [];
+
+// Level meter
+let levelEls    = [];
+let peakIdx     = 0;
+let peakTimer   = null;
+
+// Audio player
+let previewAud  = null;
+let playing     = false;
+
+// Keyboard hint fade
+let kbTimer     = null;
+let cmpPass     = 0;
+
+// ═══════════════════════════════════════════════════════════════════════════
+// LEVEL BARS INIT
+// ═══════════════════════════════════════════════════════════════════════════
+
+function initBars() {
+  const c = document.getElementById('levelBars');
+  c.innerHTML = '';
+  levelEls = [];
+  for (let i = 0; i < 20; i++) {
+    const b = document.createElement('div');
+    b.className = 'level-bar';
+    b.style.height = (8 + i * 0.8) + 'px';
+    c.appendChild(b);
+    levelEls.push(b);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// CANVAS RESIZE
+// ═══════════════════════════════════════════════════════════════════════════
+
+function resizeCanvases() {
+  const w = waveC.parentElement ? (waveC.parentElement.clientWidth || 400) : 400;
+  waveC.width  = freqC.width  = w;
+  waveC.height = freqC.height = 180;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// FIX 1 — CONSTRAINTS GENERATOR
+// ═══════════════════════════════════════════════════════════════════════════
+
+function getAudioConstraints() {
+  if (isClassroom) {
+    return {
+      audio: {
+        sampleRate: { ideal: 48000, min: 44100 },
+        sampleSize: { ideal: 16 },
+        channelCount: { ideal: 1 },
+        echoCancellation: { ideal: true },
+        noiseSuppression: { ideal: true },
+        autoGainControl: { ideal: true },
+        suppressLocalAudioPlayback: true,
+        latency: { ideal: 0, max: 0.02 },
+        googEchoCancellation: true,
+        googAutoGainControl: true,
+        googNoiseSuppression: true,
+        googHighpassFilter: true,
+        googEchoCancellation2: true,
+        googAutoGainControl2: true,
+        googNoiseSuppression2: true,
+        googTypingNoiseDetection: true,
+        googAudioMirroring: false,
+        googNoiseReduction: true,
+      }
+    };
+  }
+  return {
+    audio: {
+      sampleRate: { ideal: 48000, min: 44100 },
+      sampleSize: { ideal: 16 },
+      channelCount: { ideal: 1 },
+      echoCancellation: { ideal: true },
+      noiseSuppression: { ideal: true },
+      autoGainControl: { ideal: true },
+      latency: { ideal: 0.01, max: 0.05 },
+      googEchoCancellation: true,
+      googAutoGainControl: true,
+      googNoiseSuppression: true,
+      googHighpassFilter: true,
+      googEchoCancellation2: true,
+      googAutoGainControl2: true,
+      googNoiseSuppression2: true,
+      googTypingNoiseDetection: true,
+    }
+  };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// FIX 6 — PRE-RECORDING MIC CHECK & DIAGNOSIS
+// ═══════════════════════════════════════════════════════════════════════════
+
+async function runMicCheck(stream) {
+  const checkContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 48000 });
+  const checkSource = checkContext.createMediaStreamSource(stream);
+  const checkAnalyser = checkContext.createAnalyser();
+  checkAnalyser.fftSize = 1024;
+  checkSource.connect(checkAnalyser);
+
+  const buffer = new Float32Array(checkAnalyser.fftSize);
+  const samples = [];
+
+  const sampleInterval = setInterval(() => {
+    checkAnalyser.getFloatTimeDomainData(buffer);
+    let s = 0;
+    for (let i = 0; i < buffer.length; i++) s += buffer[i] * buffer[i];
+    samples.push(Math.sqrt(s / buffer.length));
+  }, 100);
+
+  await new Promise(resolve => setTimeout(resolve, 1800));
+  clearInterval(sampleInterval);
+  await checkContext.close();
+
+  const avgRMS = samples.length ? (samples.reduce((a, b) => a + b, 0) / samples.length) : 0;
+  const maxRMS = samples.length ? Math.max(...samples) : 0;
+
+  const diagnosis = getMicDiagnosis(avgRMS, maxRMS);
+  return { avgRMS, maxRMS, diagnosis };
+}
+
+function getMicDiagnosis(avg, max) {
+  if (avg < 0.001) return {
+    status: "no_signal",
+    message: "⚠️ No microphone signal detected.",
+    tip: "Check your mic connection and browser permissions.",
+    color: "rgba(252,129,129,0.15)",
+    borderColor: "rgba(252,129,129,0.4)",
+    textColor: "#fc8181",
+    allowRecord: false
+  };
+  if (avg < 0.003) return {
+    status: "too_quiet",
+    message: "⚠️ Microphone signal is very weak.",
+    tip: "Move closer to the mic or increase system input volume.",
+    color: "rgba(246,173,85,0.15)",
+    borderColor: "rgba(246,173,85,0.4)",
+    textColor: "#f6ad55",
+    allowRecord: true
+  };
+  if (max > 0.95) return {
+    status: "clipping",
+    message: "⚠️ Microphone input level is too high.",
+    tip: "Reduce microphone volume in settings to avoid distortion.",
+    color: "rgba(252,129,129,0.15)",
+    borderColor: "rgba(252,129,129,0.4)",
+    textColor: "#fc8181",
+    allowRecord: false
+  };
+  if (avg > 0.005 && avg < 0.8) return {
+    status: "good",
+    message: "✓ Microphone check passed.",
+    tip: "Signal level is optimal for AI transcription.",
+    color: "rgba(104,211,145,0.15)",
+    borderColor: "rgba(104,211,145,0.4)",
+    textColor: "#68d391",
+    allowRecord: true
+  };
+  return {
+    status: "ok",
+    message: "✓ Microphone detected.",
+    tip: "Ready for recording.",
+    color: "rgba(99,179,237,0.15)",
+    borderColor: "rgba(99,179,237,0.4)",
+    textColor: "#63b3ed",
+    allowRecord: true
+  };
+}
+
+function displayMicCheckResult(res) {
+  const banner = document.getElementById('micCheckBanner');
+  const btnStart = document.getElementById('btnStart');
+  banner.className = 'mic-check-banner visible';
+  banner.style.background = res.diagnosis.color;
+  banner.style.border = `1px solid ${res.diagnosis.borderColor}`;
+  banner.style.color = res.diagnosis.textColor;
+
+  banner.innerHTML = `
+    <span class="mc-level">Signal: ${res.avgRMS.toFixed(4)} RMS</span>
+    <div class="mc-title">${res.diagnosis.message}</div>
+    <div class="mc-tip">${res.diagnosis.tip}</div>
+  `;
+
+  if (btnStart) {
+    btnStart.disabled = !res.diagnosis.allowRecord;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// FIX 4 & FIX 5 — 7-NODE AUDIO PROCESSING CHAIN & INTELLIGENT GATE
+// ═══════════════════════════════════════════════════════════════════════════
+
+async function initAudioChain(stream) {
+  // Lazy init AudioContext (Fix 4 Rule 2)
+  if (!audioCtx) {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 48000 });
+  }
+  if (audioCtx.state === "suspended") {
+    await audioCtx.resume();
+  }
+
+  // Node 1: Source
+  const source = audioCtx.createMediaStreamSource(stream);
+
+  // Raw Analyser tapped BEFORE processing chain for noise gate (Fix 5)
+  const analyserRaw = audioCtx.createAnalyser();
+  analyserRaw.fftSize = 2048;
+  analyserRaw.smoothingTimeConstant = 0.8;
+  source.connect(analyserRaw);
+
+  // Node 2: High pass filter
+  const highpass = audioCtx.createBiquadFilter();
+  highpass.type = "highpass";
+  highpass.frequency.value = isClassroom ? 100 : 80;
+  highpass.Q.value = 0.7;
+
+  // Node 3: Low mid cut (300Hz room resonance)
+  const lowMidCut = audioCtx.createBiquadFilter();
+  lowMidCut.type = "peaking";
+  lowMidCut.frequency.value = 300;
+  lowMidCut.gain.value = isClassroom ? -6 : -4;
+  lowMidCut.Q.value = 1.4;
+
+  // Node 4: Presence boost (2.5kHz speech clarity)
+  const presenceBoost = audioCtx.createBiquadFilter();
+  presenceBoost.type = "peaking";
+  presenceBoost.frequency.value = 2500;
+  presenceBoost.gain.value = isClassroom ? 4 : 3;
+  presenceBoost.Q.value = 1.0;
+
+  // Node 5: Dynamics Compressor
+  const compressor = audioCtx.createDynamicsCompressor();
+  compressor.threshold.value = isClassroom ? -18 : -24;
+  compressor.knee.value = 20;
+  compressor.ratio.value = isClassroom ? 8 : 6;
+  compressor.attack.value = isClassroom ? 0.005 : 0.003;
+  compressor.release.value = 0.15;
+
+  // Node 6: High frequency roll-off
+  const lowpass = audioCtx.createBiquadFilter();
+  lowpass.type = "lowpass";
+  lowpass.frequency.value = isClassroom ? 7000 : 8000;
+  lowpass.Q.value = 0.7;
+
+  // Node 7: Makeup gain
+  const makeupGain = audioCtx.createGain();
+  makeupGain.gain.value = isClassroom ? 1.7 : 1.5;
+
+  // Dedicated Noise Gate Node (Fix 5)
+  const noiseGateNode = audioCtx.createGain();
+  noiseGateNode.gain.value = 1.0;
+
+  // Spectral Analyser (Classroom mode low-frequency noise tap)
+  const spectralAnalyser = audioCtx.createAnalyser();
+  spectralAnalyser.fftSize = 2048;
+  highpass.connect(spectralAnalyser);
+
+  // Silence Analyser tapped AFTER processing chain (Fix 7)
+  const silenceAnalyser = audioCtx.createAnalyser();
+  silenceAnalyser.fftSize = 2048;
+  silenceAnalyser.smoothingTimeConstant = 0.65;
+
+  // Destination stream for MediaRecorder
+  const destination = audioCtx.createMediaStreamDestination();
+
+  // Connect 7-Node chain + Noise Gate + Analysers
+  source
+    .connect(highpass)
+    .connect(lowMidCut)
+    .connect(presenceBoost)
+    .connect(compressor)
+    .connect(lowpass)
+    .connect(makeupGain)
+    .connect(noiseGateNode)
+    .connect(destination);
+
+  noiseGateNode.connect(silenceAnalyser);
+
+  // Store in window._audioNodes for global teardown (Fix 8)
+  window._audioNodes = {
+    source, highpass, lowMidCut, presenceBoost,
+    compressor, lowpass, makeupGain, noiseGate: noiseGateNode,
+    destination, analyserRaw, spectralAnalyser, silenceAnalyser
+  };
+  window._rawStream = stream;
+
+  console.log("[MIC QUALITY] Audio chain initialized (7-Node DSP)");
+  console.log("[MIC QUALITY] AudioContext sample rate:", audioCtx.sampleRate);
+
+  return destination.stream;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// FIX 5 — NOISE GATE & SPECTRAL GATE PROCESSORS
+// ═══════════════════════════════════════════════════════════════════════════
+
+function processNoiseGate() {
+  if (!window._audioNodes || appState !== 'RECORDING') return;
+  const { analyserRaw, noiseGate: ngNode } = window._audioNodes;
+  if (!analyserRaw || !ngNode) return;
+
+  const buffer = new Float32Array(analyserRaw.fftSize);
+  analyserRaw.getFloatTimeDomainData(buffer);
+
+  let sumSquares = 0;
+  for (let i = 0; i < buffer.length; i++) {
+    sumSquares += buffer[i] * buffer[i];
+  }
+  const rmsVal = Math.sqrt(sumSquares / buffer.length);
+
+  if (!gateOpen && rmsVal > noiseGate + gateHysteresis) {
+    gateOpen = true;
+    ngNode.gain.setTargetAtTime(1.0, audioCtx.currentTime, 0.01);
+  } else if (gateOpen && rmsVal < noiseGate) {
+    gateOpen = false;
+    ngNode.gain.setTargetAtTime(0.0, audioCtx.currentTime, 0.03);
+  }
+}
+
+function processSpectralGate() {
+  if (!window._audioNodes || !isClassroom || appState !== 'RECORDING') return;
+  const { spectralAnalyser, noiseGate: ngNode } = window._audioNodes;
+  if (!spectralAnalyser || !ngNode) return;
+
+  const buf = new Uint8Array(spectralAnalyser.frequencyBinCount);
+  spectralAnalyser.getByteFrequencyData(buf);
+
+  let lowBand = 0, speechBand = 0;
+  for (let i = 3; i <= 10; i++)  lowBand    += buf[i]; // 100-300Hz rumble
+  for (let i = 11; i <= 30; i++) speechBand += buf[i]; // speech fundamental
+
+  const avgLow = lowBand / 7;
+  const avgSpeech = speechBand / 19;
+
+  if (avgLow > avgSpeech * 1.5) {
+    ngNode.gain.setTargetAtTime(0.0, audioCtx.currentTime, 0.005);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// FIX 3 — ADAPTIVE BITRATE & MEDIARECORDER
+// ═══════════════════════════════════════════════════════════════════════════
+
+function getBitrate(durationSeconds) {
+  if (durationSeconds < 300)   return 128000;  // 0-5min: 128kbps
+  if (durationSeconds < 900)   return 96000;   // 5-15min: 96kbps
+  if (durationSeconds < 1800)  return 64000;   // 15-30min: 64kbps
+  return 48000;                                 // 30min+: 48kbps
+}
+
+function makeMR(bitrate) {
+  selectedMimeType = selectBestCodec();
+  const options = {
+    audioBitsPerSecond: bitrate
+  };
+  if (selectedMimeType) {
+    options.mimeType = selectedMimeType;
+  }
+
+  const mr = new MediaRecorder(processedStream, options);
+  mr.ondataavailable = (e) => {
+    if (e.data && e.data.size > 0) {
+      chunks.push(e.data);
+    }
+  };
+  return mr;
+}
+
+function checkBitrate() {
+  if (appState !== 'RECORDING') return;
+  const mins = elapsedSec / 60;
+  let next = getBitrate(elapsedSec);
+  if (next !== curBitrate) {
+    curBitrate = next;
+    console.log("[MIC QUALITY] Adaptive bitrate target:", next);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// FIX 7 — SILENCE DETECTION & AUTO-STOP
+// ═══════════════════════════════════════════════════════════════════════════
+
+function checkSilence() {
+  if (appState !== 'RECORDING' || !window._audioNodes) return;
+  const { silenceAnalyser } = window._audioNodes;
+  if (!silenceAnalyser) return;
+
+  const buf = new Float32Array(silenceAnalyser.fftSize);
+  silenceAnalyser.getFloatTimeDomainData(buf);
+
+  let s = 0;
+  for (let i = 0; i < buf.length; i++) s += buf[i] * buf[i];
+  const rmsVal = Math.sqrt(s / buf.length);
+
+  const threshold = isClassroom ? 0.004 : 0.006;
+
+  if (rmsVal < threshold) {
+    consecutiveSilenceFrames++;
+    if (consecutiveSilenceFrames >= 32) { // 32 * 250ms = 8000ms = 8s
+      autoStopRecording();
+      return;
+    }
+  } else {
+    consecutiveSilenceFrames = 0;
+  }
+
+  silenceTimeout = setTimeout(checkSilence, 250);
+}
+
+function autoStopRecording() {
+  console.log("[MIC QUALITY] Auto-stopped due to 8 seconds of silence");
+  handleStop();
+  const el = document.getElementById('statusLabel');
+  if (el) el.textContent = 'Auto-Stopped (Silence)';
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// FIX 8 — MEMORY LEAK PREVENTION & TEARDOWN
+// ═══════════════════════════════════════════════════════════════════════════
+
+function teardownAudioChain() {
+  if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
+  if (timerInt) { clearInterval(timerInt); timerInt = null; }
+  if (bitrateInt) { clearInterval(bitrateInt); bitrateInt = null; }
+  if (silenceTimeout) { clearTimeout(silenceTimeout); silenceTimeout = null; }
+
+  if (window._audioNodes) {
+    const {
+      source, highpass, lowMidCut, presenceBoost,
+      compressor, lowpass, makeupGain, noiseGate: ngNode,
+      analyserRaw, spectralAnalyser, silenceAnalyser
+    } = window._audioNodes;
+
+    try {
+      source?.disconnect();
+      highpass?.disconnect();
+      lowMidCut?.disconnect();
+      presenceBoost?.disconnect();
+      compressor?.disconnect();
+      lowpass?.disconnect();
+      makeupGain?.disconnect();
+      ngNode?.disconnect();
+      analyserRaw?.disconnect();
+      spectralAnalyser?.disconnect();
+      silenceAnalyser?.disconnect();
+    } catch (e) {
+      console.warn("[MIC QUALITY] Teardown node disconnect error:", e);
+    }
+    window._audioNodes = null;
+  }
+
+  if (window._rawStream) {
+    window._rawStream.getTracks().forEach(t => t.stop());
+    window._rawStream = null;
+  }
+
+  if (audioCtx && audioCtx.state !== 'closed') {
+    audioCtx.close().then(() => {
+      console.log("[MIC QUALITY] AudioContext closed cleanly");
+    });
+    audioCtx = null;
+  }
+
+  processedStream = null;
+  console.log("[MIC QUALITY] Audio chain torn down — zero memory leak");
+}
+
+window.addEventListener("beforeunload", teardownAudioChain);
+
+// ═══════════════════════════════════════════════════════════════════════════
+// CANVAS RENDER LOOP
+// ═══════════════════════════════════════════════════════════════════════════
+
+function renderLoop() {
+  rafId = requestAnimationFrame(renderLoop);
+  frame++;
+
+  if (!window._audioNodes || !window._audioNodes.silenceAnalyser) {
+    drawIdle(); return;
+  }
+  const analyser = window._audioNodes.silenceAnalyser;
+
+  const w = waveC.width, h = waveC.height;
+  const tBuf = new Uint8Array(analyser.fftSize);
+  analyser.getByteTimeDomainData(tBuf);
+
+  if (frame % 4 === 0) {
+    const fBuf = new Uint8Array(analyser.frequencyBinCount);
+    analyser.getByteFrequencyData(fBuf);
+    drawFreq(fBuf, w, h);
+  }
+
+  if (frame % 2 === 0) {
+    drawWave(tBuf, w, h);
+    updateVU(tBuf);
+    runVAD(tBuf);
+    checkClip(tBuf);
+    sampleQuality(tBuf);
+    processNoiseGate();
+    if (isClassroom) processSpectralGate();
+  }
+}
+
+function drawIdle() {
+  const w = waveC.width, h = waveC.height;
+  wCtx.clearRect(0, 0, w, h);
+  fCtx.clearRect(0, 0, w, h);
+  wCtx.beginPath();
+  wCtx.moveTo(0, h / 2); wCtx.lineTo(w, h / 2);
+  wCtx.strokeStyle = isClassroom ? 'rgba(159,122,234,0.25)' : 'rgba(99,179,237,0.25)';
+  wCtx.lineWidth = 1.5; wCtx.stroke();
+}
+
+function drawFreq(fBuf, w, h) {
+  fCtx.clearRect(0, 0, w, h);
+  const count = Math.min(fBuf.length, 80);
+  const bw = w / count;
+  fCtx.fillStyle = '#6C3BD5';
+  for (let i = 0; i < count; i++) {
+    const bh = (fBuf[i] / 255) * h;
+    fCtx.fillRect(i * bw, h - bh, bw - 1, bh);
+    fCtx.fillRect(i * bw, 0, bw - 1, bh * 0.25);
+  }
+}
+
+function drawWave(tBuf, w, h) {
+  wCtx.clearRect(0, 0, w, h);
+  const color = isClassroom ? '#9F7AEA' : '#63B3ED';
+  const colorA = isClassroom ? 'rgba(159,122,234,' : 'rgba(99,179,237,';
+  const sw = w / tBuf.length;
+
+  const grad = wCtx.createLinearGradient(0, 0, 0, h);
+  grad.addColorStop(0, colorA + '0.6)');
+  grad.addColorStop(1, colorA + '0)');
+
+  wCtx.beginPath();
+  for (let i = 0; i < tBuf.length; i++) {
+    const y = (tBuf[i] / 255) * h;
+    i === 0 ? wCtx.moveTo(0, y) : wCtx.lineTo(i * sw, y);
+  }
+  wCtx.lineTo(w, h / 2); wCtx.closePath();
+  wCtx.fillStyle = grad; wCtx.fill();
+
+  wCtx.beginPath();
+  for (let i = 0; i < tBuf.length; i++) {
+    const y = (tBuf[i] / 255) * h;
+    i === 0 ? wCtx.moveTo(0, y) : wCtx.lineTo(i * sw, y);
+  }
+  wCtx.strokeStyle = color; wCtx.lineWidth = 2;
+  wCtx.shadowBlur = 8; wCtx.shadowColor = color;
+  wCtx.stroke(); wCtx.shadowBlur = 0;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// VU METER & VAD
+// ═══════════════════════════════════════════════════════════════════════════
+
+function rms(buf) {
+  let s = 0;
+  for (let i = 0; i < buf.length; i++) { const v = (buf[i] - 128) / 128; s += v * v; }
+  return Math.sqrt(s / buf.length);
+}
+
+function updateVU(tBuf) {
+  const level = Math.min(19, Math.floor(rms(tBuf) * 180));
+  for (let i = 0; i < 20; i++) {
+    if (i === peakIdx && i > level) {
+      levelEls[i].style.background = 'rgba(255,255,255,0.85)';
+    } else if (i <= level) {
+      levelEls[i].style.background = i < 12 ? '#48BB78' : i < 16 ? '#ECC94B' : '#FC8181';
+    } else {
+      levelEls[i].style.background = 'rgba(255,255,255,0.08)';
+    }
+  }
+  if (level > peakIdx) {
+    peakIdx = level;
+    if (peakTimer) clearTimeout(peakTimer);
+    peakTimer = setTimeout(() => { peakIdx = 0; }, 2000);
+  }
+}
+
+function runVAD(tBuf) {
+  const r = rms(tBuf);
+  const next = r > 0.015 ? 'speaking' : 'silence';
+  if (next !== vadState) {
+    if (vadTimer) clearTimeout(vadTimer);
+    vadTimer = setTimeout(() => commitVAD(next), 200);
+  } else {
+    if (vadTimer) { clearTimeout(vadTimer); vadTimer = null; }
+    if (appState === 'RECORDING') liveSegUpdate(next);
+  }
+}
+
+function commitVAD(ns) {
+  vadState = ns;
+  const ind = document.getElementById('vadInd');
+  const txt = document.getElementById('vadTxt');
+  ind.className = 'vad-indicator ' + (ns === 'speaking' ? 'vad-speaking' : 'vad-silence');
+  txt.textContent = ns === 'speaking' ? '● Speaking' : '○ Silence';
+
+  if (appState === 'RECORDING') {
+    const now = elapsed();
+    if (segments.length) segments[segments.length - 1].end = now;
+    segments.push({ type: ns, start: now, end: now });
+    renderTimeline();
+  }
+}
+
+function liveSegUpdate(type) {
+  if (!segments.length) {
+    segments.push({ type, start: 0, end: elapsed() });
+  } else {
+    const last = segments[segments.length - 1];
+    if (last.type === type) last.end = elapsed();
+  }
+  if (elapsedSec > 10) renderTimeline();
+}
+
+function checkClip(tBuf) {
+  if (appState !== 'RECORDING') return;
+  for (let i = 0; i < tBuf.length; i++) {
+    if (Math.abs(tBuf[i] - 128) > 115) {
+      const ts = fmt(elapsedSec);
+      if (!clips.length || clips[clips.length - 1] !== ts) clips.push(ts);
+      break;
+    }
+  }
+}
+
+function sampleQuality(tBuf) {
+  if (appState !== 'RECORDING') return;
+  const r = rms(tBuf);
+  (vadState === 'speaking' ? speakRMS : silRMS).push(r);
+}
+
+function calcQuality() {
+  const avgSpk = speakRMS.length ? speakRMS.reduce((a,b)=>a+b)/speakRMS.length : 0;
+  const avgSil = silRMS.length   ? silRMS.reduce((a,b)=>a+b)/silRMS.length : 0.001;
+  const snrRatio = Math.min(avgSpk / (avgSil + 0.0001), 20);
+  const snrScore   = (snrRatio / 20) * 100 * 0.4;
+  const clipScore  = (100 - Math.min(clips.length * 5, 30)) * 0.3;
+  const total      = speakRMS.length + silRMS.length || 1;
+  const silRatio   = silRMS.length / total;
+  const silPenalty = silRatio < 0.4 ? 0 : ((silRatio - 0.4) / 0.6) * 100;
+  const silScore   = (100 - silPenalty) * 0.3;
+  const score      = Math.max(0, Math.min(100, Math.round(snrScore + clipScore + silScore)));
+
+  let tip = 'Great recording conditions!';
+  if (avgSpk < 0.02)         tip = 'Move closer — voice level is low.';
+  else if (clips.length > 2) tip = 'Too many clips. Move further from microphone.';
+  else if (silRatio > 0.5)   tip = 'Over 50% silence. Trim the recording.';
+
+  return { score, tip };
+}
+
+function renderTimeline() {
+  if (elapsedSec < 10) return;
+  const sec = document.getElementById('tlSection');
+  const bar = document.getElementById('tlBar');
+  sec.classList.add('visible');
+  bar.innerHTML = '';
+  const dur = elapsedSec || 1;
+  for (const seg of segments) {
+    const d = document.createElement('div');
+    d.style.width = Math.max(0.1, ((seg.end - seg.start) / dur) * 100) + '%';
+    d.className = 'seg-' + seg.type;
+    d.title = seg.type + ' @ ' + fmt(Math.floor(seg.start));
+    bar.appendChild(d);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TIMER & COUNTDOWN
+// ═══════════════════════════════════════════════════════════════════════════
+
+function fmt(s) {
+  return String(Math.floor(s/60)).padStart(2,'0') + ':' + String(s%60).padStart(2,'0');
+}
+
+function elapsed() {
+  if (!recStart) return 0;
+  const pOff = pauseAt ? (Date.now() - pauseAt) : 0;
+  return (Date.now() - recStart - pausedMs - pOff) / 1000;
+}
+
+function tickTimer() {
+  elapsedSec = Math.floor(elapsed());
+  if (elapsedSec >= maxDuration) { stopRec(); return; }
+  document.getElementById('timerDisp').textContent = fmt(elapsedSec);
+  const off = CIRC - (elapsedSec / maxDuration) * CIRC;
+  document.getElementById('timerRing').style.strokeDashoffset = off;
+}
+
+function countdown(cb) {
+  const ov = document.getElementById('cntOverlay');
+  const nm = document.getElementById('cntNum');
+  ov.classList.add('visible');
+  const steps = ['3','2','1','GO'];
+  let i = 0;
+  function tick() {
+    nm.textContent = steps[i];
+    nm.style.animation = 'none';
+    void nm.offsetHeight;
+    nm.style.animation = 'cdown-anim 0.8s ease-out';
+    i++;
+    if (i < steps.length) setTimeout(tick, 800);
+    else setTimeout(() => { ov.classList.remove('visible'); cb(); }, 600);
+  }
+  tick();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// STATE MACHINE
+// ═══════════════════════════════════════════════════════════════════════════
+
+function setAppState(s) {
+  appState = s;
+  const badge  = document.getElementById('statusBadge');
+  const lbl    = document.getElementById('statusLabel');
+  const btnRow = document.getElementById('btnRow');
+  const mic    = document.getElementById('micWrap');
+
+  badge.className = 'status-badge';
+  mic.className   = 'mic-wrap';
+
+  switch (s) {
+    case 'IDLE':
+      badge.classList.add('badge-idle'); lbl.textContent = 'Ready';
+      btnRow.innerHTML = '<button class="rec-btn btn-start" id="btnStart" onclick="handleStart()"><div class="rec-dot"></div>START RECORDING</button>';
+      document.getElementById('postPanel').classList.remove('visible');
+      document.getElementById('tlSection').classList.remove('visible');
+      document.getElementById('timerDisp').textContent = '00:00';
+      document.getElementById('timerRing').style.strokeDashoffset = CIRC;
+      drawIdle();
+      break;
+
+    case 'CHECKING':
+      badge.classList.add('badge-checking'); lbl.textContent = 'Checking Mic…';
+      btnRow.innerHTML = '<button class="rec-btn btn-start" disabled><div class="rec-dot"></div>🎙️ Checking Microphone…</button>';
+      break;
+
+    case 'COUNTDOWN':
+      badge.classList.add('badge-idle'); lbl.textContent = 'Get Ready…';
+      btnRow.innerHTML = '';
+      break;
+
+    case 'RECORDING':
+      badge.classList.add('badge-recording'); lbl.textContent = 'Recording';
+      mic.classList.add('rec-active');
+      btnRow.innerHTML = `
+        <button class="rec-btn btn-pause"  onclick="handlePause()">⏸ PAUSE</button>
+        <button class="rec-btn btn-stop"   onclick="handleStop()">■ STOP & PROCESS</button>`;
+      break;
+
+    case 'PAUSED':
+      badge.classList.add('badge-paused'); lbl.textContent = 'Paused';
+      btnRow.innerHTML = `
+        <button class="rec-btn btn-resume" onclick="handleResume()">▶ RESUME</button>
+        <button class="rec-btn btn-stop"   onclick="handleStop()">■ STOP & PROCESS</button>`;
+      break;
+
+    case 'DONE':
+      badge.classList.add('badge-done'); lbl.textContent = 'Captured';
+      btnRow.innerHTML = '';
+      showPost();
+      break;
+
+    case 'COMPRESSING':
+      badge.classList.add('badge-idle'); lbl.textContent = 'Optimizing…';
+      btnRow.innerHTML = '';
+      document.getElementById('cmpSection').classList.add('visible');
+      break;
+  }
+  syncHeight();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// RECORDING ACTIONS
+// ═══════════════════════════════════════════════════════════════════════════
+
+async function handleStart() {
+  setAppState('CHECKING');
+  flashKb();
+
+  let rawMicStream;
+  try {
+    rawMicStream = await navigator.mediaDevices.getUserMedia(getAudioConstraints());
+
+    // Inspect settings & display warning if sampleRate < 44100
+    const track = rawMicStream.getAudioTracks()[0];
+    const settings = track ? track.getSettings() : {};
+    console.log("[MIC QUALITY] Actual sample rate:", settings.sampleRate);
+    console.log("[MIC QUALITY] Echo cancellation:", settings.echoCancellation);
+    console.log("[MIC QUALITY] Noise suppression:", settings.noiseSuppression);
+    console.log("[MIC QUALITY] Auto gain:", settings.autoGainControl);
+
+    const srWarn = document.getElementById('srWarningBadge');
+    if (settings.sampleRate && settings.sampleRate < 44100) {
+      srWarn.textContent = `⚠️ Your device microphone is limited to ${settings.sampleRate}Hz. Audio quality may be reduced.`;
+      srWarn.classList.add('visible');
+    } else {
+      srWarn.classList.remove('visible');
+    }
+
+    // FIX 6: Pre-recording mic check
+    const checkRes = await runMicCheck(rawMicStream);
+    displayMicCheckResult(checkRes);
+
+    if (!checkRes.diagnosis.allowRecord) {
+      rawMicStream.getTracks().forEach(t => t.stop());
+      setAppState('IDLE');
+      return;
+    }
+
+    // FIX 4: Build 7-Node audio processing chain
+    processedStream = await initAudioChain(rawMicStream);
+
+  } catch(err) {
+    alert('Mic access denied: ' + err.message);
+    setAppState('IDLE');
+    return;
+  }
+
+  setAppState('COUNTDOWN');
+  countdown(startRec);
+}
+
+function startRec() {
+  chunks = []; clips = []; segments = [];
+  speakRMS = []; silRMS = [];
+  elapsedSec = 0; peakIdx = 0; curBitrate = 128000;
+  vadState = 'silence'; hasSent = false; cmpPass = 0;
+  consecutiveSilenceFrames = 0;
+  recStart = Date.now(); pausedMs = 0; pauseAt = null;
+
+  // FIX 3: Construct MediaRecorder with processedStream & adaptive bitrate
+  mediaRec = makeMR(curBitrate);
+  mediaRec.start(1000); // 1000ms timeslice
+
+  timerInt   = setInterval(tickTimer, 500);
+  bitrateInt = setInterval(checkBitrate, 60000);
+
+  // FIX 7: Start silence detection check
+  checkSilence();
+
+  frame = 0; renderLoop();
+  setAppState('RECORDING');
+  segments.push({ type: 'silence', start: 0, end: 0 });
+}
+
+function handlePause() {
+  if (appState !== 'RECORDING') return;
+  if (mediaRec && mediaRec.state === 'recording') mediaRec.pause();
+  if (audioCtx && audioCtx.state === 'running') audioCtx.suspend();
+  pauseAt = Date.now();
+  clearInterval(timerInt);
+  if (silenceTimeout) { clearTimeout(silenceTimeout); silenceTimeout = null; }
+  const now = elapsedSec;
+  if (segments.length) segments[segments.length-1].end = now;
+  segments.push({ type: 'paused', start: now, end: now });
+  setAppState('PAUSED');
+}
+
+function handleResume() {
+  if (appState !== 'PAUSED') return;
+  pausedMs += Date.now() - pauseAt; pauseAt = null;
+  const now = elapsedSec;
+  if (segments.length) segments[segments.length-1].end = now;
+  segments.push({ type: vadState, start: now, end: now });
+  if (mediaRec && mediaRec.state === 'paused') mediaRec.resume();
+  if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+  timerInt = setInterval(tickTimer, 500);
+  checkSilence();
+  setAppState('RECORDING');
+}
+
+function handleStop() { stopRec(); }
+
+function stopRec() {
+  if (appState !== 'RECORDING' && appState !== 'PAUSED') return;
+  clearInterval(timerInt); clearInterval(bitrateInt);
+  if (silenceTimeout) { clearTimeout(silenceTimeout); silenceTimeout = null; }
+  timerInt = bitrateInt = null;
+
+  if (segments.length) segments[segments.length-1].end = elapsedSec;
+  if (mediaRec && mediaRec.state !== 'inactive') {
+    mediaRec.onstop = () => finalizeRec();
+    mediaRec.stop();
+  } else { finalizeRec(); }
+  setAppState('COMPRESSING');
+}
+
+async function finalizeRec() {
+  if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
+  const mime = (chunks[0] && chunks[0].type) || selectedMimeType || 'audio/webm';
+  finalBlob = new Blob(chunks, { type: mime });
+
+  const LIMIT = 25 * 1024 * 1024;
+  if (finalBlob.size > LIMIT) {
+    const intv = animateCompress();
+    finalBlob = await reencodeBlob(finalBlob);
+    clearInterval(intv);
+    document.getElementById('cmpFill').style.width = '100%';
+  }
+
+  document.getElementById('cmpSection').classList.remove('visible');
+  setAppState('DONE');
+  setupPlayer(finalBlob);
+  const { score, tip } = calcQuality();
+  renderQuality(score, tip);
+  renderClips();
+}
+
+function animateCompress() {
+  let p = 0;
+  return setInterval(() => {
+    p = Math.min(p + 4, 88);
+    document.getElementById('cmpFill').style.width = p + '%';
+    document.getElementById('cmpLabel').textContent = 'Optimizing recording size… ' + p + '%';
+  }, 220);
+}
+
+async function reencodeBlob(blob) {
+  cmpPass++;
+  if (cmpPass > 2) {
+    document.getElementById('cmpLabel').textContent = '⚠ Recording too large. Please trim to under 45 minutes.';
+    return blob;
+  }
+  return new Promise((resolve) => {
+    const url = URL.createObjectURL(blob);
+    const aud = new Audio(url);
+    const st = aud.captureStream ? aud.captureStream()
+              : aud.mozCaptureStream ? aud.mozCaptureStream() : null;
+    if (!st) { URL.revokeObjectURL(url); resolve(blob); return; }
+    const ch = [];
+    const mr = new MediaRecorder(st, { mimeType: 'audio/webm;codecs=opus', audioBitsPerSecond: 32000 });
+    mr.ondataavailable = (e) => { if (e.data.size > 0) ch.push(e.data); };
+    mr.onstop = () => {
+      const out = new Blob(ch, { type: 'audio/webm' });
+      URL.revokeObjectURL(url);
+      if (out.size > 25 * 1024 * 1024) resolve(reencodeBlob(out));
+      else resolve(out);
+    };
+    aud.play(); mr.start(1000);
+    aud.onended = () => mr.stop();
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// POST-RECORDING PANEL & BLOB HANDOFF (FIX 9)
+// ═══════════════════════════════════════════════════════════════════════════
+
+function showPost() { document.getElementById('postPanel').classList.add('visible'); }
+
+function setupPlayer(blob) {
+  const url = URL.createObjectURL(blob);
+  previewAud = new Audio(url);
+  playing = false;
+
+  const playBtn = document.getElementById('playBtn');
+  const svgEl   = document.getElementById('playSvg');
+  const track   = document.getElementById('scrubTrack');
+  const fill    = document.getElementById('scrubFill');
+  const thumb   = document.getElementById('scrubThumb');
+  const timeEl  = document.getElementById('playerTime');
+
+  previewAud.addEventListener('timeupdate', () => {
+    const pct = (previewAud.currentTime / (previewAud.duration || 1)) * 100;
+    fill.style.width  = pct + '%';
+    thumb.style.left  = pct + '%';
+    timeEl.textContent = fmt(Math.floor(previewAud.currentTime)) +
+      ' / ' + fmt(Math.floor(previewAud.duration || 0));
+  });
+  previewAud.addEventListener('ended', () => {
+    playing = false;
+    svgEl.innerHTML = '<polygon points="2,1 12,8 2,15" fill="white"/>';
+  });
+
+  playBtn.onclick = () => {
+    if (playing) {
+      previewAud.pause(); playing = false;
+      svgEl.innerHTML = '<polygon points="2,1 12,8 2,15" fill="white"/>';
+    } else {
+      previewAud.play(); playing = true;
+      svgEl.innerHTML = '<rect x="2" y="1" width="3" height="14" fill="white"/><rect x="9" y="1" width="3" height="14" fill="white"/>';
+    }
+  };
+  track.addEventListener('click', (e) => {
+    const r = track.getBoundingClientRect();
+    previewAud.currentTime = ((e.clientX - r.left) / r.width) * (previewAud.duration || 0);
+  });
+}
+
+function renderQuality(score, tip) {
+  let cls, label;
+  if (score >= 80) { cls = 'q-excel'; label = 'Excellent'; }
+  else if (score >= 60) { cls = 'q-good'; label = 'Good'; }
+  else if (score >= 40) { cls = 'q-fair'; label = 'Fair'; }
+  else { cls = 'q-poor'; label = 'Poor'; }
+
+  document.getElementById('qualSection').innerHTML = `
+    <div class="q-badge ${cls}">
+      <span class="q-num">${score}</span>
+      <span class="q-lbl">SCORE</span>
+    </div>
+    <div>
+      <div class="q-info-title">${label} Recording Quality</div>
+      <div class="q-info-tip">${tip}</div>
+    </div>`;
+}
+
+function renderClips() {
+  const el = document.getElementById('clipReport');
+  if (!clips.length) {
+    el.className = 'clip-report clip-ok';
+    el.textContent = '✓ No clipping detected — clean recording';
+  } else {
+    el.className = 'clip-report clip-warn';
+    el.innerHTML = `⚠️ Clipping at: ${clips.join(', ')}<br>
+      <span style="font-size:10px;opacity:.65">Move further from the microphone.</span>`;
+  }
+}
+
+// FIX 9: Validate and Pass Blob to Streamlit
+async function validateAndPassBlob(blob) {
+  const MIN_SIZE = 1024;
+  if (blob.size < MIN_SIZE) {
+    alert("Recording is empty or too short. Please try again.");
+    return;
+  }
+
+  const { score } = calcQuality();
+  const qualityMeta = {
+    mimeType: blob.type,
+    sizeBytes: blob.size,
+    sizeMB: (blob.size / 1024 / 1024).toFixed(2),
+    durationSeconds: elapsedSec,
+    sampleRate: audioCtx?.sampleRate || 48000,
+    processingChain: isClassroom ? "HP100→CUT300→BOOST2.5K→COMP→LP7K→GATE→GAIN" : "HP80→CUT300→BOOST2.5K→COMP→LP8K→GATE→GAIN",
+    classroomMode: isClassroom,
+    codecSelected: selectedMimeType,
+    peakClips: clips.length,
+    qualityScore: score,
+  };
+  console.log("[MIC QUALITY] Final recording metadata:", qualityMeta);
+
+  const reader = new FileReader();
+  reader.onloadend = () => {
+    const b64 = reader.result.split(',')[1];
+    SL.setValue({
+      audio_b64: b64,
+      clips,
+      quality_score: score,
+      segments: segments.map(s => ({ type: s.type, start: s.start, end: s.end })),
+      quality_meta: qualityMeta
+    });
+    hasSent = true;
+  };
+  reader.readAsDataURL(blob);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// EVENT LISTENERS
+// ═══════════════════════════════════════════════════════════════════════════
+
+document.getElementById('btnUse').addEventListener('click', () => {
+  if (!finalBlob) return;
+  validateAndPassBlob(finalBlob);
+});
+
+document.getElementById('btnAgain').addEventListener('click', () => {
+  if (hasSent) { SL.setValue(null); hasSent = false; }
+  if (previewAud) { previewAud.pause(); previewAud = null; }
+  teardownAudioChain();
+  clips = []; segments = []; speakRMS = []; silRMS = [];
+  elapsedSec = 0; finalBlob = null; peakIdx = 0;
+  document.getElementById('vadInd').className = 'vad-indicator vad-silence';
+  document.getElementById('vadTxt').textContent = '○ Silence';
+  document.getElementById('micCheckBanner').className = 'mic-check-banner';
+  setAppState('IDLE');
+});
+
+document.addEventListener('keydown', (e) => {
+  if (document.activeElement.tagName === 'INPUT') return;
+  if (e.code === 'Space') {
+    e.preventDefault(); flashKb();
+    if (appState === 'IDLE') handleStart();
+    else if (appState === 'RECORDING') handlePause();
+    else if (appState === 'PAUSED') handleResume();
+  } else if (e.code === 'Escape') {
+    flashKb();
+    if (appState === 'RECORDING' || appState === 'PAUSED') handleStop();
+  } else if (e.code === 'KeyR' && appState === 'DONE') {
+    flashKb();
+    document.getElementById('btnAgain').click();
+  }
+});
+
+function flashKb() {
+  const el = document.getElementById('kbHints');
+  el.classList.add('lit');
+  if (kbTimer) clearTimeout(kbTimer);
+  kbTimer = setTimeout(() => el.classList.remove('lit'), 2000);
+}
+
+document.getElementById('ngSlider').addEventListener('input', (e) => {
+  noiseGate = parseFloat(e.target.value);
+  document.getElementById('ngVal').textContent = noiseGate.toFixed(3);
+});
+
+function applyClassroomTheme(on) {
+  document.getElementById('recCard').classList.toggle('classroom-active', on);
+  document.getElementById('filterChain').classList.toggle('visible', on);
+
+  // Update pills for active mode
+  document.getElementById('pillHp').textContent = on ? 'HP100' : 'HP80';
+  document.getElementById('pillCut').textContent = 'CUT300';
+  document.getElementById('pillBoost').textContent = 'BOOST2.5K';
+  document.getElementById('pillComp').textContent = 'COMP';
+  document.getElementById('pillLp').textContent = on ? 'LP7K' : 'LP8K';
+  document.getElementById('pillGain').textContent = 'GAIN';
+}
+
+function syncHeight() {
+  setTimeout(() => SL.setHeight(document.body.scrollHeight + 8), 60);
+}
+new ResizeObserver(() => syncHeight()).observe(document.body);
+
+function onRender(args) {
+  isClassroom  = args.classroom_mode       || false;
+  maxDuration  = args.max_duration_seconds || 3600;
+  const ngDef  = args.noise_gate_default   || 0.008;
+
+  if (appState === 'IDLE') {
+    noiseGate = ngDef;
+    document.getElementById('ngSlider').value = ngDef;
+    document.getElementById('ngVal').textContent = ngDef.toFixed(3);
+  }
+  applyClassroomTheme(isClassroom);
+}
+
+initBars();
+resizeCanvases();
+setAppState('IDLE');
+drawIdle();
+SL.ready();
+syncHeight();
+window.addEventListener('resize', () => { resizeCanvases(); syncHeight(); });
+</script>
+</body>
+</html>

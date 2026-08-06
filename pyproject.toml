@@ -1,0 +1,36 @@
+# ==============================================================================
+# pyproject.toml — Unified project configuration for Multimodal AI Media Summarizer
+# ==============================================================================
+
+[project]
+name = "multimodal-ai-media-summarizer"
+version = "1.0.0"
+description = "Streamlit SaaS app for multilingual AI-powered media summarization via Google Gemini"
+requires-python = ">=3.11"
+readme = "README.md"
+
+# ---------------------------------------------------------------------------
+# pytest configuration
+# ---------------------------------------------------------------------------
+[tool.pytest.ini_options]
+# Tests live in the tests/ subdirectory
+testpaths = ["tests"]
+
+# Ensure the project root (where app.py and all source modules live) is on
+# sys.path during test collection, so flat imports (from config import ...,
+# from transcoder import ..., etc.) resolve correctly.
+pythonpath = ["."]
+
+# Output settings
+addopts = "-v --tb=short"
+
+# ---------------------------------------------------------------------------
+# pyright / pylance configuration
+# (mirrors the previous pyrightconfig.json — kept there too for editor compat)
+# ---------------------------------------------------------------------------
+[tool.pyright]
+venvPath = "."
+venv = ".venv"
+pythonVersion = "3.11"
+typeCheckingMode = "basic"
+reportMissingModuleSource = false

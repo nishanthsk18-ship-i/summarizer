@@ -1,0 +1,29 @@
+services:
+  media-summarizer:
+    build:
+      # Build context is the repo root (one level up from this file's location).
+      # .dockerignore at repo root is automatically used by Docker for this context.
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: media_summarizer_app
+    ports:
+      - "8501:8501"
+    environment:
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - GEMINI_MODEL=${GEMINI_MODEL:-gemini-2.5-flash}
+      - MAX_VIDEO_SIZE_MB=${MAX_VIDEO_SIZE_MB:-500}
+      - DEFAULT_LANGUAGE=${DEFAULT_LANGUAGE:-English}
+      - DEBUG=${DEBUG:-false}
+    volumes:
+      - app_data:/app/.tmp
+      - db_data:/app/keys_db
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8501/_stcore/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  app_data:
+  db_data:
