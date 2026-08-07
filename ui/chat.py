@@ -40,24 +40,59 @@ def render_result_and_chat(chat_client: GeminiVideoClient | None = None) -> None
         with tab_raw:
             st.code(result.summary_markdown, language="markdown")
 
-        # Download & Copy buttons
+        # Download & Export buttons (PDF, Word DOCX, Markdown, Text)
         st.markdown("")
         ts        = datetime.now().strftime("%Y%m%d_%H%M%S")
         base_name = Path(result.video_filename).stem
 
-        dl_col1, dl_col2, _ = st.columns([2, 2, 3])
+        from export_handler import generate_pdf_bytes, generate_docx_bytes
+
+        meta_info = {
+            "duration": getattr(result, "duration_str", ""),
+            "language": result.target_language,
+        }
+
+        dl_col1, dl_col2, dl_col3, dl_col4 = st.columns(4)
         with dl_col1:
+            pdf_bytes = generate_pdf_bytes(
+                title=f"Summary: {base_name}",
+                summary_text=result.summary_markdown,
+                metadata=meta_info,
+            )
             st.download_button(
-                label="⬇️ Download Markdown",
+                label="📄 Export PDF",
+                data=pdf_bytes,
+                file_name=f"{base_name}_summary_{ts}.pdf",
+                mime="application/pdf",
+                key="dl_pdf",
+                use_container_width=True,
+            )
+        with dl_col2:
+            docx_bytes = generate_docx_bytes(
+                title=f"Summary: {base_name}",
+                summary_text=result.summary_markdown,
+                metadata=meta_info,
+            )
+            st.download_button(
+                label="📝 Export Word (.docx)",
+                data=docx_bytes,
+                file_name=f"{base_name}_summary_{ts}.docx",
+                mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                key="dl_docx",
+                use_container_width=True,
+            )
+        with dl_col3:
+            st.download_button(
+                label="📋 Download Markdown",
                 data=result.summary_markdown,
                 file_name=f"{base_name}_summary_{result.target_language}_{ts}.md",
                 mime="text/markdown",
                 key="dl_md",
                 use_container_width=True,
             )
-        with dl_col2:
+        with dl_col4:
             st.download_button(
-                label="⬇️ Download Plain Text",
+                label="📄 Download Text",
                 data=result.summary_markdown,
                 file_name=f"{base_name}_summary_{result.target_language}_{ts}.txt",
                 mime="text/plain",
