@@ -8,6 +8,14 @@ import stat
 import streamlit as st
 from config import config, SUPPORTED_LANGUAGES
 
+MODEL_DISPLAY_NAMES: dict[str, str] = {
+    "gemini-3.6-flash":                 "NeuralFlash v3.6  ⚡ Fast",
+    "gemini-3.5-flash":                 "NeuralFlash v3.5  🧠 Powerful",
+    "gemini-3.5-flash-lite":            "NeuralLite v3.5  ⚖️ Balanced",
+    "gemini-3.1-pro-preview":           "NeuralPro v3.1 (preview)  🔬 Research",
+    "gemini-3.1-flash-lite-preview":    "NeuralUltra v3.1 (preview)  ⚡ Ultra-Fast",
+}
+
 def render_sidebar() -> tuple[str, str, str, str]:
     """Renders the dark-glass sidebar and returns (selected_model, target_language, source_language, extra_instructions)."""
     with st.sidebar:
@@ -100,24 +108,10 @@ def render_sidebar() -> tuple[str, str, str, str]:
             unsafe_allow_html=True,
         )
 
-        model_options = [
-            "NeuralFlash v3.6  ⚡ Fast",
-            "NeuralFlash v3.5  🧠 Powerful",
-            "NeuralLite v3.5  ⚖️ Balanced",
-            "NeuralPro v3.1 (preview)  🔬 Research",
-            "NeuralUltra v3.1 (preview)  ⚡ Ultra-Fast",
-        ]
-        _model_api_names = {
-            "NeuralFlash v3.6  ⚡ Fast":                 "gemini-3.6-flash",
-            "NeuralFlash v3.5  🧠 Powerful":             "gemini-3.5-flash",
-            "NeuralLite v3.5  ⚖️ Balanced":        "gemini-3.5-flash-lite",
-            "NeuralPro v3.1 (preview)  🔬 Research":     "gemini-3.1-pro-preview",
-            "NeuralUltra v3.1 (preview)  ⚡ Ultra-Fast": "gemini-3.1-flash-lite-preview",
-        }
-        _current_display = next(
-            (k for k, v in _model_api_names.items() if v == config.gemini_model),
-            "NeuralFlash v3.6  ⚡ Fast",
-        )
+        model_options = list(MODEL_DISPLAY_NAMES.values())
+        _model_api_names = {v: k for k, v in MODEL_DISPLAY_NAMES.items()}
+        _current_display = MODEL_DISPLAY_NAMES.get(config.gemini_model, model_options[0])
+        
         selected_model_display = st.selectbox(
             "AI Model Engine",
             model_options,

@@ -428,7 +428,7 @@ for _k, _v in _STATE_DEFAULTS.items():
 # ---------------------------------------------------------------------------
 # Sidebar
 # ---------------------------------------------------------------------------
-from ui.sidebar import render_sidebar
+from ui.sidebar import MODEL_DISPLAY_NAMES, render_sidebar
 selected_model, target_language, source_language, extra_instructions = render_sidebar()
 
 
@@ -567,7 +567,7 @@ with col_opts:
 <div class="card">
     <div style="margin-bottom:0.75rem">
         <span style="color:#94a3b8;font-size:0.82rem">🤖 Model</span><br>
-        <span style="font-weight:600;color:#c7d2fe">{selected_model}</span>
+        <span style="font-weight:600;color:#c7d2fe">{MODEL_DISPLAY_NAMES.get(selected_model, selected_model)}</span>
     </div>
     <div style="margin-bottom:0.75rem">
         <span style="color:#94a3b8;font-size:0.82rem">🌐 Output Language</span><br>
