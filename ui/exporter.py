@@ -4,7 +4,7 @@ ui/exporter.py
 1-Click Export module for the Multimodal AI Media Summarizer.
 Exports AI-generated summaries in three formats:
   - PDF via ReportLab (emoji-safe, professional layout, zero system deps)
-  - DOCX via python-docx (preserves full heading hierarchy, blockquotes, bold/italic)
+  - DOCX via python-docx (preserves full heading hierarchy, nested bullets, blockquotes, bold/italic)
   - Markdown via direct UTF-8 encoding (zero-loss, reference format)
 
 Session state keys used (read-only):
@@ -78,6 +78,59 @@ _EMOJI_MAP: dict[str, str] = {
     "—": "-",
     "…": "...",
 }
+
+
+def _clean_math(text: str) -> str:
+    """
+    Clean LaTeX math notation and escaped symbols so text/DOCX/PDF exports
+    render readable mathematical and set notation instead of raw TeX backslashes.
+    E.g. $\\{A, B\\}$ -> {A, B}, \\rightarrow -> →, \\dots -> …
+    """
+    if not text:
+        return ""
+
+    # Common LaTeX symbol replacements
+    replacements = [
+        (r"\\\{", "{"),
+        (r"\\\}", "}"),
+        (r"\\rightarrow", "→"),
+        (r"\\to\b", "→"),
+        (r"\\leftarrow", "←"),
+        (r"\\Rightarrow", "⇒"),
+        (r"\\Leftarrow", "⇐"),
+        (r"\\Leftrightarrow", "⇔"),
+        (r"\\in\b", "∈"),
+        (r"\\notin\b", "∉"),
+        (r"\\subset\b", "⊂"),
+        (r"\\subseteq\b", "⊆"),
+        (r"\\cup\b", "∪"),
+        (r"\\cap\b", "∩"),
+        (r"\\emptyset\b", "∅"),
+        (r"\\dots\b", "…"),
+        (r"\\ldots\b", "…"),
+        (r"\\approx\b", "≈"),
+        (r"\\neq\b", "≠"),
+        (r"\\leq\b", "≤"),
+        (r"\\le\b", "≤"),
+        (r"\\geq\b", "≥"),
+        (r"\\ge\b", "≥"),
+        (r"\\\$", "$"),
+        (r"\\\_", "_"),
+    ]
+    for pattern, repl in replacements:
+        text = re.sub(pattern, repl, text)
+
+    # Strip inline math $...$ delimiters for set/variable/math expressions
+    # e.g., ${A, B}$ -> {A, B}, $B$ -> B, $x = 5$ -> x = 5
+    # Avoid stripping currency like $100 or $50.00
+    def _unwrap_math(m: re.Match[str]) -> str:
+        content = m.group(1)
+        if re.match(r"^\d+(?:\.\d+)?$", content):
+            return m.group(0)
+        return content
+
+    text = re.sub(r"\$([^\$\n]+)\$", _unwrap_math, text)
+    return text
 
 
 def _clean_for_pdf(text: str) -> str:
@@ -190,16 +243,17 @@ def export_markdown(summary_text: str, filename: str) -> bytes:
     """
     Encode summary text as UTF-8 Markdown bytes with a YAML front-matter header.
 
-    Zero processing — the raw markdown from the AI is preserved perfectly.
-    This is the reference format: emoji, formatting, and structure are intact.
+    Cleans raw LaTeX math escapes (e.g. \\{A, B\\} -> {A, B}) while preserving
+    full markdown formatting and structure.
 
     Args:
         summary_text: Raw markdown string from the AI.
-        filename: Base filename without extension (unused but kept for API symmetry).
+        filename: Base filename without extension.
 
     Returns:
         UTF-8 encoded bytes ready for st.download_button().
     """
+    cleaned = _clean_math(summary_text)
     header = (
         f"---\n"
         f"title: AI Media Summary\n"
@@ -207,7 +261,7 @@ def export_markdown(summary_text: str, filename: str) -> bytes:
         f"format: Markdown\n"
         f"---\n\n"
     )
-    return (header + summary_text).encode("utf-8")
+    return (header + cleaned).encode("utf-8")
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -218,9 +272,9 @@ def export_docx(summary_text: str, filename: str) -> bytes:
     """
     Convert markdown summary to a formatted Microsoft Word (.docx) document.
 
-    Preserves the full heading hierarchy (H1–H4), bullet/numbered lists,
+    Preserves full heading hierarchy (H1–H4), nested bullet/numbered lists,
     blockquotes (with a blue left border), inline bold/italic/code, and
-    horizontal rules. Emoji pass through natively via Unicode font embedding.
+    horizontal rules. Cleans LaTeX math notation. Emoji pass through natively.
 
     Args:
         summary_text: Raw markdown string from the AI.
@@ -263,50 +317,61 @@ def export_docx(summary_text: str, filename: str) -> bytes:
     lines = summary_text.split("\n")
     i = 0
     while i < len(lines):
-        line = lines[i].rstrip()
+        raw_line = lines[i].rstrip()
+        line = _clean_math(raw_line)
+        stripped = line.strip()
 
-        if line.startswith("#### "):
+        if stripped.startswith("#### "):
             h = doc.add_heading(level=4)
-            _add_formatted_runs(h, line[5:].strip())
+            _add_formatted_runs(h, stripped[5:].strip())
 
-        elif line.startswith("### "):
+        elif stripped.startswith("### "):
             h = doc.add_heading(level=3)
-            r = h.add_run(line[4:].strip())
+            r = h.add_run(stripped[4:].strip())
             r.font.color.rgb = RGBColor(0x37, 0x4B, 0xA0)
 
-        elif line.startswith("## "):
+        elif stripped.startswith("## "):
             h = doc.add_heading(level=2)
-            r = h.add_run(line[3:].strip())
+            r = h.add_run(stripped[3:].strip())
             r.font.color.rgb = RGBColor(0x1E, 0x40, 0xAF)
 
-        elif line.startswith("# "):
+        elif stripped.startswith("# "):
             h = doc.add_heading(level=1)
-            r = h.add_run(line[2:].strip())
+            r = h.add_run(stripped[2:].strip())
             r.font.color.rgb = RGBColor(0x1A, 0x56, 0xDB)
 
-        elif re.match(r"^[-*]\s+", line):
-            text = re.sub(r"^[-*]\s+", "", line)
+        elif match := re.match(r"^(\s*)([-*•])\s+(.*)", line):
+            indent_str, _, text = match.groups()
+            indent_spaces = len(indent_str.expandtabs(4))
             para = doc.add_paragraph(style="List Bullet")
+            if indent_spaces > 0:
+                indent_level = max(1, indent_spaces // 2)
+                para.paragraph_format.left_indent = Inches(0.25 * indent_level + 0.25)
             _add_formatted_runs(para, text)
 
-        elif re.match(r"^\d+\.\s+", line):
-            text = re.sub(r"^\d+\.\s+", "", line)
+        elif match := re.match(r"^(\s*)(\d+)[\.\)]\s+(.*)", line):
+            indent_str, num_str, text = match.groups()
+            indent_spaces = len(indent_str.expandtabs(4))
             para = doc.add_paragraph(style="List Number")
+            if indent_spaces > 0:
+                indent_level = max(1, indent_spaces // 2)
+                para.paragraph_format.left_indent = Inches(0.25 * indent_level + 0.25)
             _add_formatted_runs(para, text)
 
-        elif line.startswith("> "):
+        elif match := re.match(r"^(\s*)>\s*(.*)", line):
+            _, text = match.groups()
             para = doc.add_paragraph()
             para.paragraph_format.left_indent = Inches(0.5)
-            _add_formatted_runs(para, line[2:].strip())
+            _add_formatted_runs(para, text)
             _add_paragraph_border(para)
             for run in para.runs:
                 run.italic = True
                 run.font.color.rgb = RGBColor(0x37, 0x4B, 0xA0)
 
-        elif line.startswith("```"):
+        elif stripped.startswith("```"):
             code_lines: list[str] = []
             i += 1
-            while i < len(lines) and not lines[i].startswith("```"):
+            while i < len(lines) and not lines[i].strip().startswith("```"):
                 code_lines.append(lines[i])
                 i += 1
             if code_lines:
@@ -315,14 +380,14 @@ def export_docx(summary_text: str, filename: str) -> bytes:
                 run.font.name = "Courier New"
                 run.font.size = Pt(9)
 
-        elif line.strip() in ("---", "***", "___"):
+        elif stripped in ("---", "***", "___"):
             doc.add_paragraph("─" * 60)
 
-        elif line.strip() == "":
+        elif stripped == "":
             pass  # skip empty lines — no extra blank paragraphs
 
         else:
-            if line.strip():
+            if stripped:
                 para = doc.add_paragraph()
                 _add_formatted_runs(para, line)
 
@@ -354,8 +419,8 @@ def export_pdf(summary_text: str, filename: str) -> bytes:
     Convert markdown summary to a professional PDF document via ReportLab.
 
     Emoji are replaced with text equivalents before rendering to prevent
-    ReportLab crashes. Preserves heading hierarchy, bullet lists, blockquotes,
-    inline bold/italic/code, and horizontal rules. Page numbers in footer.
+    ReportLab crashes. Preserves heading hierarchy, nested bullet lists,
+    blockquotes, inline bold/italic/code, and horizontal rules. Cleans LaTeX math.
 
     Args:
         summary_text: Raw markdown string from the AI.
@@ -472,19 +537,26 @@ def export_pdf(summary_text: str, filename: str) -> bytes:
 
     lines = summary_text.split("\n")
     i = 0
-    bullet_buf: list[str] = []
+    bullet_buf: list[tuple[str, int]] = []
 
     def _flush_bullets() -> None:
         if not bullet_buf:
             return
-        items = [
-            ListItem(
-                Paragraph(_inline_pdf(b), s_bullet),
-                bulletColor=HexColor("#1A56DB"),
-                bulletType="bullet",
+        items = []
+        for text, level in bullet_buf:
+            indent_pt = 16 + (level * 12)
+            b_style = ParagraphStyle(
+                f"Bullet_{indent_pt}",
+                parent=s_bullet,
+                leftIndent=indent_pt,
             )
-            for b in bullet_buf
-        ]
+            items.append(
+                ListItem(
+                    Paragraph(_inline_pdf(text), b_style),
+                    bulletColor=HexColor("#1A56DB"),
+                    bulletType="bullet",
+                )
+            )
         story.append(ListFlowable(
             items,
             bulletType="bullet",
@@ -496,53 +568,63 @@ def export_pdf(summary_text: str, filename: str) -> bytes:
         bullet_buf.clear()
 
     while i < len(lines):
-        raw = lines[i].rstrip()
+        raw_line = lines[i].rstrip()
+        line = _clean_math(raw_line)
+        stripped = line.strip()
 
-        if raw.startswith("#### "):
+        if stripped.startswith("#### "):
             _flush_bullets()
-            story.append(Paragraph(_inline_pdf(_clean_for_pdf(raw[5:].strip())), s_h4))
+            story.append(Paragraph(_inline_pdf(_clean_for_pdf(stripped[5:].strip())), s_h4))
 
-        elif raw.startswith("### "):
+        elif stripped.startswith("### "):
             _flush_bullets()
             story.append(Spacer(1, 4))
-            story.append(Paragraph(_inline_pdf(_clean_for_pdf(raw[4:].strip())), s_h3))
+            story.append(Paragraph(_inline_pdf(_clean_for_pdf(stripped[4:].strip())), s_h3))
 
-        elif raw.startswith("## "):
+        elif stripped.startswith("## "):
             _flush_bullets()
             story.append(Spacer(1, 6))
-            story.append(Paragraph(_inline_pdf(_clean_for_pdf(raw[3:].strip())), s_h2))
+            story.append(Paragraph(_inline_pdf(_clean_for_pdf(stripped[3:].strip())), s_h2))
 
-        elif raw.startswith("# "):
+        elif stripped.startswith("# "):
             _flush_bullets()
             story.append(Spacer(1, 8))
-            story.append(Paragraph(_inline_pdf(_clean_for_pdf(raw[2:].strip())), s_h1))
+            story.append(Paragraph(_inline_pdf(_clean_for_pdf(stripped[2:].strip())), s_h1))
             story.append(HRFlowable(
                 width="100%", thickness=1,
                 color=HexColor("#DBEAFE"), spaceAfter=4,
             ))
 
-        elif re.match(r"^[-*]\s+", raw):
-            text = re.sub(r"^[-*]\s+", "", raw)
-            bullet_buf.append(_clean_for_pdf(text))
+        elif match := re.match(r"^(\s*)([-*•])\s+(.*)", line):
+            indent_str, _, text = match.groups()
+            indent_spaces = len(indent_str.expandtabs(4))
+            indent_level = max(0, indent_spaces // 2)
+            bullet_buf.append((_clean_for_pdf(text), indent_level))
 
-        elif re.match(r"^\d+\.\s+", raw):
+        elif match := re.match(r"^(\s*)(\d+)[\.\)]\s+(.*)", line):
             _flush_bullets()
-            text = re.sub(r"^\d+\.\s+", "", raw)
+            indent_str, num_str, text = match.groups()
+            indent_spaces = len(indent_str.expandtabs(4))
+            indent_pt = 16 + max(0, indent_spaces // 2) * 12
             story.append(Paragraph(
-                f"• {_inline_pdf(_clean_for_pdf(text))}", s_bullet
+                f"{num_str}. {_inline_pdf(_clean_for_pdf(text))}",
+                ParagraphStyle(
+                    f"Num_{indent_pt}", parent=s_bullet, leftIndent=indent_pt
+                )
             ))
 
-        elif raw.startswith("> "):
+        elif match := re.match(r"^(\s*)>\s*(.*)", line):
             _flush_bullets()
+            _, text = match.groups()
             story.append(Paragraph(
-                _inline_pdf(_clean_for_pdf(raw[2:].strip())), s_quote
+                _inline_pdf(_clean_for_pdf(text)), s_quote
             ))
 
-        elif raw.startswith("```"):
+        elif stripped.startswith("```"):
             _flush_bullets()
             code_lines: list[str] = []
             i += 1
-            while i < len(lines) and not lines[i].startswith("```"):
+            while i < len(lines) and not lines[i].strip().startswith("```"):
                 code_lines.append(lines[i])
                 i += 1
             if code_lines:
@@ -551,22 +633,22 @@ def export_pdf(summary_text: str, filename: str) -> bytes:
                     s_code,
                 ))
 
-        elif raw.strip() in ("---", "***", "___"):
+        elif stripped in ("---", "***", "___"):
             _flush_bullets()
             story.append(HRFlowable(
                 width="100%", thickness=1,
                 color=HexColor("#E5E7EB"), spaceAfter=6,
             ))
 
-        elif raw.strip() == "":
+        elif stripped == "":
             _flush_bullets()
             story.append(Spacer(1, 4))
 
         else:
-            if raw.strip():
+            if stripped:
                 _flush_bullets()
                 story.append(Paragraph(
-                    _inline_pdf(_clean_for_pdf(raw)), s_body
+                    _inline_pdf(_clean_for_pdf(line)), s_body
                 ))
 
         i += 1

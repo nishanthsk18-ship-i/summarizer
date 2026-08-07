@@ -358,3 +358,43 @@ class TestCrossFormatConsistency:
         assert export_markdown(text, "test")[:3] == b"---"
         assert export_docx(text, "test")[:2] == b"PK"
         assert export_pdf(text, "test")[:4] == b"%PDF"
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# TEST GROUP 6 — LATEX MATH CLEANING & NESTED BULLETS
+# ══════════════════════════════════════════════════════════════════════════════
+
+class TestMathAndNestedBullets:
+
+    def test_latex_braces_cleaned(self) -> None:
+        raw = r"initial belief state is $\{A, B\}$ and new state is $\{B\}$."
+        md = export_markdown(raw, "test").decode("utf-8")
+        assert r"\{" not in md
+        assert r"\}" not in md
+        assert "{A, B}" in md
+        assert "{B}" in md
+
+    def test_nested_indented_bullets_docx(self) -> None:
+        raw = (
+            "• Main item:\n"
+            "  - Sub item 1\n"
+            "  - Sub item 2\n"
+            "    - Deep sub item\n"
+        )
+        docx_bytes = export_docx(raw, "test")
+        doc = DocxDocument(BytesIO(docx_bytes))
+        texts = [p.text for p in doc.paragraphs]
+        assert "Main item:" in texts
+        assert "Sub item 1" in texts
+        assert "Sub item 2" in texts
+        assert "Deep sub item" in texts
+
+    def test_nested_indented_bullets_pdf(self) -> None:
+        raw = (
+            "• Main item:\n"
+            "  - Sub item 1\n"
+            "  - Sub item 2\n"
+        )
+        pdf_bytes = export_pdf(raw, "test")
+        assert pdf_bytes[:4] == b"%PDF"
+
