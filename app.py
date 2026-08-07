@@ -282,6 +282,56 @@ button[key="extract_mp3_btn"] {
 @media (prefers-reduced-motion: reduce) {
     * { animation: none !important; transition: none !important; }
 }
+
+/* ── Export / Download Buttons ──────────────────────────────────── */
+div[data-testid="stDownloadButton"] > button {
+    border-radius: 50px !important;
+    padding: 10px 20px !important;
+    font-weight: 600 !important;
+    font-size: 13px !important;
+    letter-spacing: 0.3px !important;
+    border: 1px solid rgba(255,255,255,0.12) !important;
+    background: rgba(255,255,255,0.04) !important;
+    color: rgba(255,255,255,0.75) !important;
+    transition: all 0.2s cubic-bezier(0.4,0,0.2,1) !important;
+    width: 100% !important;
+}
+
+/* PDF button — coral/red accent */
+div[data-testid="stDownloadButton"][data-key="export_pdf_btn"] > button {
+    background: linear-gradient(135deg, rgba(252,129,74,0.15), rgba(252,129,74,0.06)) !important;
+    color: #FC8174 !important;
+    border-color: rgba(252,129,74,0.3) !important;
+}
+div[data-testid="stDownloadButton"][data-key="export_pdf_btn"] > button:hover {
+    background: linear-gradient(135deg, rgba(252,129,74,0.28), rgba(252,129,74,0.14)) !important;
+    box-shadow: 0 0 22px rgba(252,129,74,0.22) !important;
+    transform: translateY(-2px) !important;
+}
+
+/* DOCX button — blue accent */
+div[data-testid="stDownloadButton"][data-key="export_docx_btn"] > button {
+    background: linear-gradient(135deg, rgba(99,179,237,0.15), rgba(99,179,237,0.06)) !important;
+    color: #63B3ED !important;
+    border-color: rgba(99,179,237,0.3) !important;
+}
+div[data-testid="stDownloadButton"][data-key="export_docx_btn"] > button:hover {
+    background: linear-gradient(135deg, rgba(99,179,237,0.28), rgba(99,179,237,0.14)) !important;
+    box-shadow: 0 0 22px rgba(99,179,237,0.22) !important;
+    transform: translateY(-2px) !important;
+}
+
+/* Markdown button — green accent */
+div[data-testid="stDownloadButton"][data-key="export_md_btn"] > button {
+    background: linear-gradient(135deg, rgba(104,211,145,0.15), rgba(104,211,145,0.06)) !important;
+    color: #68D391 !important;
+    border-color: rgba(104,211,145,0.3) !important;
+}
+div[data-testid="stDownloadButton"][data-key="export_md_btn"] > button:hover {
+    background: linear-gradient(135deg, rgba(104,211,145,0.28), rgba(104,211,145,0.14)) !important;
+    box-shadow: 0 0 22px rgba(104,211,145,0.22) !important;
+    transform: translateY(-2px) !important;
+}
 </style>
 
 <!-- Background Ambient Orbs -->
