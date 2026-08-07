@@ -74,9 +74,9 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded",
     menu_items={
-        "Get Help": "https://ai.google.dev/gemini-api/docs",
+        "Get Help": None,
         "Report a bug": None,
-        "About": "Multilingual AI Video Summarizer powered by Google Gemini.",
+        "About": "Multilingual AI Video Summarizer powered by Advanced Multimodal AI.",
     },
 )
 
@@ -395,7 +395,7 @@ st.markdown(
     <div style="display: flex; justify-content: center; gap: 12px; margin-top: 16px; flex-wrap: wrap;">
         <span style="padding: 4px 14px; border-radius: 100px; background: rgba(99, 179, 237, 0.1); border: 1px solid rgba(99, 179, 237, 0.25); color: #63B3ED; font-size: 11px; font-weight: 600;">🎓 Lecture Mode</span>
         <span style="padding: 4px 14px; border-radius: 100px; background: rgba(104, 211, 145, 0.1); border: 1px solid rgba(104, 211, 145, 0.25); color: #68D391; font-size: 11px; font-weight: 600;">🔒 Zero Footprint</span>
-        <span style="padding: 4px 14px; border-radius: 100px; background: rgba(159, 122, 234, 0.1); border: 1px solid rgba(159, 122, 234, 0.25); color: #9F7AEA; font-size: 11px; font-weight: 600;">⚡ Powered by Gemini</span>
+        <span style="padding: 4px 14px; border-radius: 100px; background: rgba(159, 122, 234, 0.1); border: 1px solid rgba(159, 122, 234, 0.25); color: #9F7AEA; font-size: 11px; font-weight: 600;">⚡ Advanced AI Engine</span>
     </div>
 </div>
 """,

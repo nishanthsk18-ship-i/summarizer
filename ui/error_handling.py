@@ -70,8 +70,7 @@ def render_error_state() -> None:
     else:
         st.info(
             "**Tips to fix common errors:**\n"
-            "- **API Key Error** — Make sure your Gemini key is valid. "
-            "[Get one here](https://aistudio.google.com/app/apikey)\n"
+            "- **API Key Error** — Make sure your API key is valid.\n"
             "- **Generation Error** — The media may be silent or have no analysable content\n"
             "- **503 Unavailable** — The model is overloaded. "
             "Switch to a different model in the sidebar",

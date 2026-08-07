@@ -97,7 +97,7 @@ def _render_active_pipeline(job_id: str | None = None) -> None:
         show_loading_ui(
             stage=2,
             progress=state.get("ffmpeg_pct", 0.0),
-            stage_message="Converting mobile video (HEVC → H.264) for Gemini compatibility...",
+            stage_message="Converting mobile video (HEVC → H.264) for AI processing...",
             file_name=file_name,
             file_size=size_str,
             file_format="HEVC",
@@ -112,7 +112,7 @@ def _render_active_pipeline(job_id: str | None = None) -> None:
         show_loading_ui(
             stage=3,
             progress=state.get("pct", 50.0),
-            stage_message="Streaming media to Google Gemini Files API...",
+            stage_message="Streaming media to High-Speed AI Cloud...",
             file_name=file_name,
             file_size=size_str,
             retry_attempt=retry_state.get("attempt", 0),
@@ -124,7 +124,7 @@ def _render_active_pipeline(job_id: str | None = None) -> None:
         show_loading_ui(
             stage=4,
             progress=50.0,
-            stage_message=f"Gemini is generating summary... ({state.get('word_count', 0):,} words generated)",
+            stage_message=f"AI is generating summary... ({state.get('word_count', 0):,} words generated)",
             file_name=file_name,
             file_size=size_str,
             skipped_stages=skipped,

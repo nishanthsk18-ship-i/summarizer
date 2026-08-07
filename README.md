@@ -1,7 +1,7 @@
 # 🎬 Multilingual AI Video Summarizer
 
 > Upload any video. Get a rich, structured educational summary — in any of 20 languages.  
-> Powered by **Google Gemini 2.0 Flash** · Built with **Streamlit** · Zero data stored permanently.
+> Powered by **Advanced Multimodal AI** · Built with **Streamlit** · Zero data stored permanently.
 
 ---
 
@@ -9,7 +9,7 @@
 
 | Feature | Detail |
 |---|---|
-| 🤖 AI-Powered Analysis | Full video understanding via Gemini multimodal API |
+| 🤖 AI-Powered Analysis | Full video understanding via multimodal AI engine |
 | 🌐 20+ Languages | English, Spanish, French, Japanese, Arabic, Hindi & more |
 | 📚 Rich Output Schema | Metadata · TOC · Key concepts · Section breakdown · Takeaways |
 | 🔄 Auto-Cleanup | Local & remote temp files deleted after every run |

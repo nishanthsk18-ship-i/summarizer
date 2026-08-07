@@ -375,7 +375,7 @@ def show_loading_ui(
         1: "STAGE 1 — UPLOAD",
         1.5: "STAGE 1.5 — EXTRACT AUDIO",
         2: "STAGE 2 — FFMPEG TRANSCODE",
-        3: "STAGE 3 — GEMINI CLOUD UPLOAD",
+        3: "STAGE 3 — CLOUD AI UPLOAD",
         4: "STAGE 4 — AI SUMMARY GENERATION",
         5: "STAGE 5 — TEARDOWN & CLEANUP",
     }
@@ -492,7 +492,7 @@ def show_transcode_progress(pct: float, speed: str = "", eta: str = "", input_fo
     show_loading_ui(
         stage=2,
         progress=pct,
-        stage_message="Converting mobile video (HEVC → H.264) for Gemini compatibility..." if not done else "✓ Transcode complete",
+        stage_message="Converting mobile video (HEVC → H.264) for AI processing..." if not done else "✓ Transcode complete",
         file_format=input_format,
         is_compatible=False,
         ffmpeg_speed=speed,
@@ -504,14 +504,14 @@ def show_cloud_upload_progress(bytes_sent: int = 0, bytes_total: int = 0, upload
     show_loading_ui(
         stage=3,
         progress=100.0 if done else pct,
-        stage_message="Streaming media to Google Gemini Files API..." if not done else "✓ Cloud upload complete",
+        stage_message="Streaming media to High-Speed AI Cloud..." if not done else "✓ Cloud upload complete",
     )
 
 def show_ai_processing(word_count: int = 0, sections_done: int = 0, msg_index: int = 0) -> None:
     show_loading_ui(
         stage=4,
         progress=50.0,
-        stage_message=f"Gemini is generating summary... ({word_count:,} words generated)",
+        stage_message=f"AI is generating summary... ({word_count:,} words generated)",
     )
 
 def show_cleanup_sequence(local_done: bool = True, cloud_done: bool = True, session_done: bool = True) -> None:

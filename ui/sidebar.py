@@ -39,7 +39,7 @@ def render_sidebar() -> tuple[str, str, str, str]:
         font-size: 11px;
         color: rgba(255, 255, 255, 0.35);
         margin-top: 2px;
-    ">Powered by Google Gemini</div>
+    ">Powered by Advanced Multimodal AI</div>
 </div>
 """,
             unsafe_allow_html=True,
@@ -74,11 +74,11 @@ def render_sidebar() -> tuple[str, str, str, str]:
         else:
             current_custom = st.session_state.get("custom_api_key_user_input", "")
             api_key_input = st.text_input(
-                "Enter Custom Gemini API Key",
+                "Enter Custom API Access Key",
                 value=current_custom,
                 type="password",
-                placeholder="AIzaSy... or live_...",
-                help="Enter your personal Google Gemini API Key or custom key.",
+                placeholder="Enter key...",
+                help="Enter your personal API Access Key or custom key.",
                 key="custom_api_key_user_input",
             )
             
@@ -101,28 +101,28 @@ def render_sidebar() -> tuple[str, str, str, str]:
         )
 
         model_options = [
-            "gemini-3.6-flash  ⚡ Fast",
-            "gemini-3.5-flash  🧠 Powerful",
-            "gemini-3.5-flash-lite  ⚖️ Balanced",
-            "gemini-3.1-pro (preview)  🔬 Research",
-            "gemini-3.1-flash-lite (preview)  ⚡ Ultra-Fast",
+            "NeuralFlash v3.6  ⚡ Fast",
+            "NeuralFlash v3.5  🧠 Powerful",
+            "NeuralLite v3.5  ⚖️ Balanced",
+            "NeuralPro v3.1 (preview)  🔬 Research",
+            "NeuralUltra v3.1 (preview)  ⚡ Ultra-Fast",
         ]
         _model_api_names = {
-            "gemini-3.6-flash  ⚡ Fast":                 "gemini-3.6-flash",
-            "gemini-3.5-flash  🧠 Powerful":             "gemini-3.5-flash",
-            "gemini-3.5-flash-lite  ⚖️ Balanced":        "gemini-3.5-flash-lite",
-            "gemini-3.1-pro (preview)  🔬 Research":     "gemini-3.1-pro-preview",
-            "gemini-3.1-flash-lite (preview)  ⚡ Ultra-Fast": "gemini-3.1-flash-lite-preview",
+            "NeuralFlash v3.6  ⚡ Fast":                 "gemini-3.6-flash",
+            "NeuralFlash v3.5  🧠 Powerful":             "gemini-3.5-flash",
+            "NeuralLite v3.5  ⚖️ Balanced":        "gemini-3.5-flash-lite",
+            "NeuralPro v3.1 (preview)  🔬 Research":     "gemini-3.1-pro-preview",
+            "NeuralUltra v3.1 (preview)  ⚡ Ultra-Fast": "gemini-3.1-flash-lite-preview",
         }
         _current_display = next(
             (k for k, v in _model_api_names.items() if v == config.gemini_model),
-            "gemini-3.6-flash  ⚡ Fast",
+            "NeuralFlash v3.6  ⚡ Fast",
         )
         selected_model_display = st.selectbox(
-            "Gemini Model",
+            "AI Model Engine",
             model_options,
             index=model_options.index(_current_display) if _current_display in model_options else 0,
-            help="Select the AI model for media summarisation.",
+            help="Select the AI model engine for media summarisation.",
             key="model_select",
             label_visibility="collapsed",
         )
@@ -190,7 +190,7 @@ def render_sidebar() -> tuple[str, str, str, str]:
         st.markdown(
             """
 <div style="text-align: center; padding-top: 0.5rem; font-size: 11px; color: rgba(255, 255, 255, 0.25);">
-    Powered by Google Gemini · Built with Streamlit<br>
+    Powered by Advanced Multimodal AI · Built with Streamlit<br>
     <span style="font-family: monospace; font-size: 10px; color: rgba(99, 179, 237, 0.6);">v2.0.0</span>
 </div>
 """,
