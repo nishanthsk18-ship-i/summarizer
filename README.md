@@ -95,7 +95,7 @@ streamlit run app.py
 Open **http://localhost:8501** in your browser.
 
 **Workflow:**
-1. Enter your Gemini API key in the sidebar (or set it in `.env`)
+1. Enter your API key in the sidebar (or set it in `.env`)
 2. Choose your model and output language
 3. Upload a video file (MP4, MOV, AVI, WebM, …)
 4. Click **🚀 Analyse Video**
@@ -228,8 +228,8 @@ The AI always returns a structured Markdown report containing:
 ## 🔒 Privacy & Security
 
 - API keys are never logged or stored beyond the session.  
-- Uploaded video files are deleted from local disk immediately after the Gemini upload completes.  
-- Remote files on the Gemini Files API are deleted after generation (they expire automatically within 48 h anyway).  
+- Uploaded video files are deleted from local disk immediately after the Cloud AI upload completes.  
+- Remote files on the Cloud AI Files API are deleted after generation (they expire automatically within 48 h anyway).  
 - No database or persistent storage is used anywhere.  
 
 ---

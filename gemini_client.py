@@ -207,7 +207,7 @@ class GeminiVideoClient:
     def __init__(self, api_key: str | None = None) -> None:
         key = api_key or config.gemini_api_key
         if not key:
-            raise APIKeyError("API key cannot be empty. Please configure GEMINI_API_KEY in .env.")
+            raise APIKeyError("API key cannot be empty. Please configure your API key in .env.")
 
         self._client = genai.Client(api_key=key)
         self._model  = config.gemini_model
@@ -250,9 +250,9 @@ class GeminiVideoClient:
         except Exception as exc:
             logger.error("Chat error: %s", exc)
             if _is_quota_error(exc):
-                raise APIKeyError("Gemini API quota exceeded.") from exc
+                raise APIKeyError("API quota exceeded.") from exc
             if _is_auth_error(exc):
-                raise APIKeyError("Gemini API authentication failed.") from exc
+                raise APIKeyError("API authentication failed.") from exc
             raise SummaryGenerationError(f"Failed to generate answer: {exc}") from exc
 
     def summarise_stream(
@@ -301,9 +301,9 @@ class GeminiVideoClient:
         try:
             # ── Stage 3: Upload (0 → _UPLOAD_END) ─────────────────────
             if _ps is not None:
-                _ps.update(job_id=job_id, stage=3, stage_label="Uploading to Gemini…", pct=0.0,
+                _ps.update(job_id=job_id, stage=3, stage_label="Uploading to Cloud AI…", pct=0.0,
                            bytes_sent=0, bytes_total=0)
-            _log(f"📤 Uploading '{file_name}' to Gemini Files API…")
+            _log(f"📤 Uploading '{file_name}' to Cloud AI…")
             remote_file = self._upload_with_progress(
                 file_obj,
                 file_name,
@@ -319,8 +319,8 @@ class GeminiVideoClient:
             # ── Stage 3b: Wait for ACTIVE (_UPLOAD_END → _PROCESS_END) ─
             if _ps is not None:
                 _ps.update(job_id=job_id, stage=3, stage_label="Indexing media…",
-                           sub_message="Gemini is indexing your file…")
-            _log("⏳ Waiting for Gemini to index the media…")
+                           sub_message="AI Cloud is indexing your file…")
+            _log("⏳ Waiting for Cloud AI to index the media…")
             remote_file = self._wait_for_active(
                 remote_file,
                 log_callback=_log,
@@ -388,7 +388,7 @@ class GeminiVideoClient:
         jumps to 100% when the thread completes.
         """
         if _ps is not None:
-            _ps.update(job_id=job_id, stage=3, stage_label="Uploading to Gemini…", pct=0.0)
+            _ps.update(job_id=job_id, stage=3, stage_label="Uploading to Cloud AI…", pct=0.0)
 
         result_holder: list[genai_types.File | None] = [None]
         error_holder:  list[BaseException | None]    = [None]
@@ -532,14 +532,14 @@ class GeminiVideoClient:
             # 429 quota exceeded
             if _is_quota_error(exc):
                 raise APIKeyError(
-                    "Gemini API quota exceeded. Wait a minute and try again, "
-                    "or check your plan at https://aistudio.google.com/app/apikey"
+                    "API quota exceeded. Please wait a minute and try again, "
+                    "or check your API plan."
                 ) from exc
             # 401/403 invalid key
             if _is_auth_error(exc):
                 raise APIKeyError(
-                    f"Gemini API authentication failed (HTTP {getattr(exc, 'code', '?')}). "
-                    "Check your API key at https://aistudio.google.com/app/apikey"
+                    f"API authentication failed (HTTP {getattr(exc, 'code', '?')}). "
+                    "Please check your API key in the .env file."
                 ) from exc
             raise
 
@@ -581,12 +581,12 @@ class GeminiVideoClient:
                 err_str = str(error)
                 if "code=13" in err_str or "failed to be processed" in err_str.lower():
                     raise VideoProcessingError(
-                        "Gemini Media Engine failed to process codec (code=13). "
+                        "Cloud AI failed to process this media codec (code=13). "
                         "If recorded on an iPhone/Android, the file is likely using HEVC/H.265 or variable frame rates. "
                         "Please convert the video to standard H.264 MP4 (or extract as MP3) before uploading."
                     )
                 raise VideoProcessingError(
-                    f"Gemini processing failed: {error}"
+                    f"Cloud AI processing failed: {error}"
                 )
 
             # Still PROCESSING — animate bar between polls
@@ -671,14 +671,14 @@ class GeminiVideoClient:
             # 429 quota exceeded
             if _is_quota_error(exc):
                 raise APIKeyError(
-                    "Gemini API quota exceeded. Wait a minute and try again, "
-                    "or check your plan at https://aistudio.google.com/app/apikey"
+                    "API quota exceeded. Please wait a minute and try again, "
+                    "or check your API plan."
                 ) from exc
             # 401/403 invalid key
             if _is_auth_error(exc):
                 raise APIKeyError(
-                    f"Gemini API authentication failed (HTTP {getattr(exc, 'code', '?')}). "
-                    "Check your API key at https://aistudio.google.com/app/apikey"
+                    f"API authentication failed (HTTP {getattr(exc, 'code', '?')}). "
+                    "Please check your API key in the .env file."
                 ) from exc
             raise
 
@@ -726,7 +726,7 @@ class GeminiVideoClient:
             text = getattr(response, "text", None)
             if not text or not text.strip():
                 raise SummaryGenerationError(
-                    "Gemini returned an empty response. "
+                    "The AI returned an empty response. "
                     "The media may be too short, silent, or contain no analysable content."
                 )
 
@@ -736,14 +736,14 @@ class GeminiVideoClient:
             # 429 quota exceeded
             if _is_quota_error(exc):
                 raise APIKeyError(
-                    "Gemini API quota exceeded. Wait a minute and try again, "
-                    "or check your plan at https://aistudio.google.com/app/apikey"
+                    "API quota exceeded. Please wait a minute and try again, "
+                    "or check your API plan."
                 ) from exc
             # 401/403 invalid key
             if _is_auth_error(exc):
                 raise APIKeyError(
-                    f"Gemini API authentication failed (HTTP {getattr(exc, 'code', '?')}). "
-                    "Check your API key at https://aistudio.google.com/app/apikey"
+                    f"API authentication failed (HTTP {getattr(exc, 'code', '?')}). "
+                    "Please check your API key in the .env file."
                 ) from exc
             raise
 
@@ -775,7 +775,7 @@ class GeminiVideoClient:
         """
         try:
             self._client.files.delete(name=file_name)
-            log_callback("🗑️  Remote file deleted from Gemini API.")
+            log_callback("🗑️  Remote file deleted from Cloud AI storage.")
         except Exception as exc:
             logger.warning("Could not delete remote file '%s': %s", file_name, exc)
             log_callback(

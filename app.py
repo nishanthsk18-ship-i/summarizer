@@ -118,7 +118,7 @@ def _run_startup_health_checks() -> None:
 
     # 4. Check GEMINI_API_KEY
     if not config.gemini_api_key:
-        st.error("❌ **GEMINI_API_KEY is not configured.** Please add GEMINI_API_KEY to your `.env` file.")
+        st.error("❌ **API Key is not configured.** Please add your API key to the `.env` file.")
 
 _run_startup_health_checks()
 
@@ -547,7 +547,7 @@ with col_upload:
             elif inspection.get("is_android"):
                 st.info("🤖 Android video detected. Auto-converting to a compatible format — takes ~10 seconds.")
             elif inspection.get("is_vfr"):
-                st.info("🎥 Variable frame rate detected. Normalizing to 30fps for Gemini compatibility.")
+                st.info("🎥 Variable frame rate detected. Normalizing to 30fps for AI compatibility.")
             elif inspection.get("needs_transcode"):
                 st.info("⚠️ Incompatible format detected. Auto-converting to a compatible format — takes ~10 seconds.")
             else:
@@ -586,10 +586,10 @@ with col_opts:
         st.markdown(
             """
 **Step 1 — Save & Upload**  
-Your file is saved locally then streamed to Google's secure Files API.
+Your file is saved locally then streamed to the secure Cloud AI Files API.
 
 **Step 2 — Server Processing**  
-Gemini indexes every frame and audio track.
+The AI engine indexes every frame and audio track.
 
 **Step 3 — AI Generation**  
 The model synthesises a structured multilingual summary.
@@ -944,7 +944,7 @@ if (analyse_clicked or mp3_clicked) and uploaded_file is not None:
                     # ffmpeg not installed — warn and attempt original (may fail)
                     logger.warning(
                         "File needs transcoding but ffmpeg is not available. "
-                        "Attempting Gemini upload with original file (may fail)."
+                        "Attempting Cloud AI upload with original file (may fail)."
                     )
 
                 # ── Step 3: Assertion guard (regression prevention) ──────────
@@ -953,7 +953,7 @@ if (analyse_clicked or mp3_clicked) and uploaded_file is not None:
                     or transcoded_path is not None
                     or not is_ffmpeg_available()
                 ), (
-                    "SAFETY BLOCK: Attempted to send incompatible file to Gemini. "
+                    "SAFETY BLOCK: Attempted to send incompatible file to Cloud AI. "
                     f"File: {file_name}, reasons: {inspection.get('reasons')}"
                 )
 

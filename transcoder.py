@@ -281,13 +281,13 @@ async def inspect_media(file_path: str) -> dict[str, Any]:
     # Video codec
     video_bad = False
     if video_codec in _INCOMPATIBLE_VIDEO_CODECS:
-        reasons.append(f"Video codec '{video_codec}' is not supported by Gemini")
+        reasons.append(f"Video codec '{video_codec}' is not supported by the Cloud AI engine")
         video_bad = True
 
     # Pixel format
     if is_video_file and pix_fmt and pix_fmt not in _COMPATIBLE_PIX_FMTS:
         reasons.append(
-            f"Pixel format '{pix_fmt}' is incompatible — Gemini requires yuv420p (8-bit)"
+            f"Pixel format '{pix_fmt}' is incompatible — Cloud AI requires yuv420p (8-bit)"
         )
         video_bad = True
 
@@ -300,7 +300,7 @@ async def inspect_media(file_path: str) -> dict[str, Any]:
     if is_vfr:
         reasons.append(
             f"Variable frame rate detected (r_fps={r_frame_rate} vs avg_fps={avg_frame_rate}) "
-            "— Gemini requires constant frame rate"
+            "— Cloud AI requires constant frame rate"
         )
         video_bad = True
 
@@ -314,7 +314,7 @@ async def inspect_media(file_path: str) -> dict[str, Any]:
     container_bad = False
     for bad_c in _INCOMPATIBLE_CONTAINERS:
         if bad_c in container:
-            reasons.append(f"Container format '{container}' may cause Gemini rejection")
+            reasons.append(f"Container format '{container}' may not be compatible with the AI engine")
             container_bad = True
             break
 

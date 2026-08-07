@@ -5,7 +5,7 @@
 [project]
 name = "multimodal-ai-media-summarizer"
 version = "1.0.0"
-description = "Streamlit SaaS app for multilingual AI-powered media summarization via Google Gemini"
+description = "Streamlit SaaS app for multilingual AI-powered media summarization via multimodal AI"
 requires-python = ">=3.11"
 readme = "README.md"
 
