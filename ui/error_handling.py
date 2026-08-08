@@ -70,9 +70,8 @@ def render_error_state() -> None:
     else:
         st.info(
             "**Tips to fix common errors:**\n"
-            "- **API Key Error** — Make sure your API key is valid.\n"
-            "- **Generation Error** — The media may be silent or have no analysable content\n"
-            "- **503 Unavailable** — The model is overloaded. "
-            "Switch to a different model in the sidebar",
+            "- **API Key Error** — Make sure your API key is configured correctly in `.env` or the sidebar.\n"
+            "- **Generation Error** — The media may be silent or contain no analysable content\n"
+            "- **503 Unavailable** — High server demand detected. The system automatically retries with backup models.",
             icon="💡",
         )

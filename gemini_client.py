@@ -217,43 +217,71 @@ class GeminiVideoClient:
     # Public API
     # ------------------------------------------------------------------
 
+    def _get_fallback_models(self) -> list[str]:
+        """Return fallback model chain starting with configured model."""
+        candidates = [
+            self._model,
+            "gemini-2.5-flash",
+            "gemini-2.0-flash",
+            "gemini-1.5-flash",
+        ]
+        return list(dict.fromkeys([m for m in candidates if m]))
+
     def ask_question(self, remote_file_name: str, chat_history: list[dict[str, str]], question: str) -> str:
         """
-        Ask a follow-up question based on the uploaded media.
+        Ask a follow-up question based on the uploaded media with automatic model fallback for 503.
         """
-        try:
-            remote_file = self._client.files.get(name=remote_file_name)
-            
-            system_instruction = "You are a helpful educational assistant. Answer the user's questions accurately based on the provided media file. If the answer is not in the media, say you don't know based on the context."
-            
-            contents: list[Any] = [remote_file]
-            
-            for msg in chat_history:
-                # Convert the simple {"role": "...", "content": "..."} dicts to what genai SDK expects
-                role = "user" if msg["role"] == "user" else "model"
-                contents.append(
-                    {"role": role, "parts": [{"text": msg["content"]}]}
+        fallback_chain = self._get_fallback_models()
+        last_exc: Exception | None = None
+
+        for model_name in fallback_chain:
+            try:
+                remote_file = self._client.files.get(name=remote_file_name)
+
+                system_instruction = "You are a helpful educational assistant. Answer the user's questions accurately based on the provided media file. If the answer is not in the media, say you don't know based on the context."
+
+                contents: list[Any] = [remote_file]
+
+                for msg in chat_history:
+                    role = "user" if msg["role"] == "user" else "model"
+                    contents.append(
+                        {"role": role, "parts": [{"text": msg["content"]}]}
+                    )
+
+                contents.append({"role": "user", "parts": [{"text": question}]})
+
+                response = self._client.models.generate_content(
+                    model=model_name,
+                    contents=contents,
+                    config=genai_types.GenerateContentConfig(
+                        system_instruction=system_instruction,
+                        temperature=0.3,
+                    ),
                 )
-            
-            contents.append({"role": "user", "parts": [{"text": question}]})
-            
-            response = self._client.models.generate_content(
-                model=self._model,
-                contents=contents,
-                config=genai_types.GenerateContentConfig(
-                    system_instruction=system_instruction,
-                    temperature=0.3,
+                return response.text or ""
+
+            except Exception as exc:
+                last_exc = exc
+                logger.error("Chat error on model %s: %s", model_name, exc)
+                if _is_quota_error(exc):
+                    raise APIKeyError("API quota exceeded.") from exc
+                if _is_auth_error(exc):
+                    raise APIKeyError("API authentication failed.") from exc
+
+                is_503 = (
+                    isinstance(exc, _genai_errors.ServerError)
+                    or "503" in str(exc)
+                    or "UNAVAILABLE" in str(exc)
+                    or "high demand" in str(exc).lower()
                 )
-            )
-            return response.text or ""
-            
-        except Exception as exc:
-            logger.error("Chat error: %s", exc)
-            if _is_quota_error(exc):
-                raise APIKeyError("API quota exceeded.") from exc
-            if _is_auth_error(exc):
-                raise APIKeyError("API authentication failed.") from exc
-            raise SummaryGenerationError(f"Failed to generate answer: {exc}") from exc
+                if is_503:
+                    continue
+                raise SummaryGenerationError(f"Failed to generate answer: {exc}") from exc
+
+        if last_exc is not None:
+            raise SummaryGenerationError(
+                "All AI models are currently experiencing high demand. Please wait 1-2 minutes and try again."
+            ) from last_exc
 
     def summarise_stream(
         self,
@@ -646,50 +674,68 @@ class GeminiVideoClient:
     ) -> Iterator[str]:
         """
         Yields the generated summary text chunk-by-chunk using the streaming API.
+        Automatically falls back to secondary models if 503 UNAVAILABLE (high demand) occurs.
         """
         if _ps is not None:
             _ps.update(stage=4, stage_label="AI Processing…", word_count=0, sections_done=[])
 
-        try:
-            system_instruction = build_system_prompt(target_language)
-            user_prompt        = build_user_prompt(target_language, source_language, extra_instructions)
-            
-            response_stream = self._client.models.generate_content_stream(
-                model=self._model,
-                contents=[remote_file, user_prompt],  # type: ignore[arg-type]
-                config=genai_types.GenerateContentConfig(
-                    system_instruction=system_instruction,
-                    temperature=0.2,
-                ),
-            )
-            
-            for chunk in response_stream:
-                if chunk.text:
-                    yield chunk.text
+        system_instruction = build_system_prompt(target_language)
+        user_prompt        = build_user_prompt(target_language, source_language, extra_instructions)
 
-        except Exception as exc:
-            # 429 quota exceeded
-            if _is_quota_error(exc):
-                raise APIKeyError(
-                    "API quota exceeded. Please wait a minute and try again, "
-                    "or check your API plan."
-                ) from exc
-            # 401/403 invalid key
-            if _is_auth_error(exc):
-                raise APIKeyError(
-                    f"API authentication failed (HTTP {getattr(exc, 'code', '?')}). "
-                    "Please check your API key in the .env file."
-                ) from exc
-            raise
+        fallback_chain = self._get_fallback_models()
+        last_exc: Exception | None = None
 
-    @retry(
-        retry=retry_if_exception(
-            lambda e: isinstance(e, _RETRYABLE_EXCEPTIONS)  # only 503 / 500
-        ),
-        wait=wait_exponential(multiplier=2, min=4, max=60),
-        stop=stop_after_attempt(3),
-        reraise=True,
-    )
+        for model_name in fallback_chain:
+            try:
+                response_stream = self._client.models.generate_content_stream(
+                    model=model_name,
+                    contents=[remote_file, user_prompt],  # type: ignore[arg-type]
+                    config=genai_types.GenerateContentConfig(
+                        system_instruction=system_instruction,
+                        temperature=0.2,
+                    ),
+                )
+
+                for chunk in response_stream:
+                    if chunk.text:
+                        yield chunk.text
+
+                return  # Stream completed successfully
+
+            except Exception as exc:
+                last_exc = exc
+                if _is_quota_error(exc):
+                    raise APIKeyError(
+                        "API quota exceeded. Please wait a minute and try again, "
+                        "or check your API plan."
+                    ) from exc
+                if _is_auth_error(exc):
+                    raise APIKeyError(
+                        f"API authentication failed (HTTP {getattr(exc, 'code', '?')}). "
+                        "Please check your API key in the .env file."
+                    ) from exc
+
+                is_503 = (
+                    isinstance(exc, _genai_errors.ServerError)
+                    or "503" in str(exc)
+                    or "UNAVAILABLE" in str(exc)
+                    or "high demand" in str(exc).lower()
+                )
+
+                if is_503:
+                    logger.warning(
+                        "Model '%s' returned 503 Unavailable (high demand). Retrying with fallback model...",
+                        model_name,
+                    )
+                    continue
+                raise exc
+
+        if last_exc is not None:
+            raise SummaryGenerationError(
+                "All AI models are currently experiencing high demand on the server. "
+                "Please wait 1-2 minutes and click 'Analyse Media' again."
+            ) from last_exc
+
     def _generate_summary(
         self,
         remote_file: genai_types.File,
@@ -700,52 +746,69 @@ class GeminiVideoClient:
     ) -> str:
         """
         Call the generative model with the media file reference and return
-        the raw summary string.
-
-        Only retries on transient ServiceUnavailable / InternalServerError.
-        Quota errors (429) and logic errors (bad model, bad prompt) raise
-        immediately without burning retry budget.
-        Uses temperature=0.3 for factual, structured output.
+        the raw summary string, with automatic model fallback for 503 errors.
         """
-        try:
-            system_instruction = build_system_prompt(target_language)
-            user_prompt        = build_user_prompt(target_language, source_language, extra_instructions)
-            
-            response = self._client.models.generate_content(
-                model=self._model,
-                contents=[remote_file, user_prompt],  # type: ignore[arg-type]
-                config=genai_types.GenerateContentConfig(
-                    system_instruction=system_instruction,
-                    temperature=0.3,
-                    max_output_tokens=8192,
-                    response_mime_type="application/json" if as_json else None,
-                    response_schema=SummaryJSON if as_json else None,
-                ),
-            )
+        fallback_chain = self._get_fallback_models()
+        last_exc: Exception | None = None
 
-            text = getattr(response, "text", None)
-            if not text or not text.strip():
-                raise SummaryGenerationError(
-                    "The AI returned an empty response. "
-                    "The media may be too short, silent, or contain no analysable content."
+        for model_name in fallback_chain:
+            try:
+                system_instruction = build_system_prompt(target_language)
+                user_prompt        = build_user_prompt(target_language, source_language, extra_instructions)
+
+                response = self._client.models.generate_content(
+                    model=model_name,
+                    contents=[remote_file, user_prompt],  # type: ignore[arg-type]
+                    config=genai_types.GenerateContentConfig(
+                        system_instruction=system_instruction,
+                        temperature=0.3,
+                        max_output_tokens=8192,
+                        response_mime_type="application/json" if as_json else None,
+                        response_schema=SummaryJSON if as_json else None,
+                    ),
                 )
 
-            return text
+                text = getattr(response, "text", None)
+                if not text or not text.strip():
+                    raise SummaryGenerationError(
+                        "The AI returned an empty response. "
+                        "The media may be too short, silent, or contain no analysable content."
+                    )
 
-        except Exception as exc:
-            # 429 quota exceeded
-            if _is_quota_error(exc):
-                raise APIKeyError(
-                    "API quota exceeded. Please wait a minute and try again, "
-                    "or check your API plan."
-                ) from exc
-            # 401/403 invalid key
-            if _is_auth_error(exc):
-                raise APIKeyError(
-                    f"API authentication failed (HTTP {getattr(exc, 'code', '?')}). "
-                    "Please check your API key in the .env file."
-                ) from exc
-            raise
+                return text
+
+            except Exception as exc:
+                last_exc = exc
+                if _is_quota_error(exc):
+                    raise APIKeyError(
+                        "API quota exceeded. Please wait a minute and try again, "
+                        "or check your API plan."
+                    ) from exc
+                if _is_auth_error(exc):
+                    raise APIKeyError(
+                        f"API authentication failed (HTTP {getattr(exc, 'code', '?')}). "
+                        "Please check your API key in the .env file."
+                    ) from exc
+
+                is_503 = (
+                    isinstance(exc, _genai_errors.ServerError)
+                    or "503" in str(exc)
+                    or "UNAVAILABLE" in str(exc)
+                    or "high demand" in str(exc).lower()
+                )
+
+                if is_503:
+                    logger.warning(
+                        "Model '%s' returned 503 Unavailable. Retrying with fallback model...",
+                        model_name,
+                    )
+                    continue
+                raise exc
+
+        if last_exc is not None:
+            raise SummaryGenerationError(
+                "All AI models are currently experiencing high demand. Please wait 1-2 minutes and try again."
+            ) from last_exc
 
     # ------------------------------------------------------------------
     # Cleanup
