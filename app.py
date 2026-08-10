@@ -485,10 +485,25 @@ with col_upload:
     uploaded_file: typing.Any = None
     if raw_uploaded_file is not None:
         uploaded_file = raw_uploaded_file
+        st.session_state["recorded_audio_bytes"] = None
     elif audio_bytes is not None:
-        # Wrap the recorded bytes into a file-like object so it acts exactly like an uploaded file
+        st.session_state["recorded_audio_bytes"] = audio_bytes
+        ext = ".webm"
+        if audio_bytes.startswith(b"\x1a\x45\xdf\xa3"):
+            ext = ".webm"
+        elif b"ftyp" in audio_bytes[:32]:
+            ext = ".m4a"
         uploaded_file = io.BytesIO(audio_bytes)
-        uploaded_file.name = "recorded_audio.wav" # type: ignore
+        uploaded_file.name = f"recorded_audio{ext}"
+    elif st.session_state.get("recorded_audio_bytes") is not None:
+        cached_bytes: bytes = st.session_state["recorded_audio_bytes"]
+        ext = ".webm"
+        if cached_bytes.startswith(b"\x1a\x45\xdf\xa3"):
+            ext = ".webm"
+        elif b"ftyp" in cached_bytes[:32]:
+            ext = ".m4a"
+        uploaded_file = io.BytesIO(cached_bytes)
+        uploaded_file.name = f"recorded_audio{ext}"
 
     if uploaded_file is not None:
         # BUG FIX: read size without consuming the stream, then seek back.
@@ -517,6 +532,24 @@ with col_upload:
 
         if st.session_state.get("_inspect_cache_key") == _inspect_cache_key:
             inspection = st.session_state.get("_inspection_cache")
+        elif is_audio_file(uploaded_file.name):
+            # Audio files do not require HEVC/VFR video inspection — skip main thread ffprobe
+            inspection = {
+                "needs_transcode": False,
+                "needs_audio_only": True,
+                "is_vfr": False,
+                "is_iphone": False,
+                "is_android": False,
+                "video_codec": "",
+                "audio_codec": "native",
+                "container": Path(uploaded_file.name).suffix.lstrip("."),
+                "reasons": [],
+                "duration_seconds": 0.0,
+                "file_size_bytes": file_size,
+                "is_video_file": False,
+            }
+            st.session_state["_inspect_cache_key"] = _inspect_cache_key
+            st.session_state["_inspection_cache"] = inspection
         else:
             # Write temp file, inspect, then delete immediately
             import uuid as _uuid
