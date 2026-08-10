@@ -15,7 +15,7 @@ Usage examples:
     python cli.py interview.mp4 --language Spanish --instructions "Focus on the Q&A"
 
     # Use a specific model
-    python cli.py tutorial.mp4 --model gemini-2.5-flash --language German
+    python cli.py tutorial.mp4 --model gemini-2.0-flash --language German
 """
 
 from __future__ import annotations

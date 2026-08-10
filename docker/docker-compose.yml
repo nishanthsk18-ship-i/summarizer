@@ -10,7 +10,7 @@ services:
       - "8501:8501"
     environment:
       - GEMINI_API_KEY=${GEMINI_API_KEY}
-      - GEMINI_MODEL=${GEMINI_MODEL:-gemini-2.5-flash}
+      - GEMINI_MODEL=${GEMINI_MODEL:-gemini-2.0-flash}
       - MAX_VIDEO_SIZE_MB=${MAX_VIDEO_SIZE_MB:-500}
       - DEFAULT_LANGUAGE=${DEFAULT_LANGUAGE:-English}
       - DEBUG=${DEBUG:-false}

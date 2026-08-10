@@ -237,9 +237,10 @@ class GeminiVideoClient:
         """Return fallback model chain starting with configured model."""
         candidates = [
             self._model,
-            "gemini-2.5-flash",
             "gemini-2.0-flash",
+            "gemini-2.0-flash-lite",
             "gemini-1.5-flash",
+            "gemini-1.5-pro",
         ]
         return list(dict.fromkeys([m for m in candidates if m]))
 
