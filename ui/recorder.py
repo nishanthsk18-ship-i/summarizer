@@ -113,7 +113,6 @@ def render_audio_recorder(
     )
 
     if not result:
-        st.session_state["recorded_audio_bytes"] = None
         return None
 
     try:
