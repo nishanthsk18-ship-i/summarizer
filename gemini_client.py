@@ -76,6 +76,22 @@ def _is_auth_error(exc: Exception) -> bool:
     return isinstance(exc, _CLIENT_ERROR_CLASS) and getattr(exc, "code", 0) in (401, 403)
 
 
+def _is_503_error(exc: BaseException) -> bool:
+    """
+    Return True if exc represents a transient 503 / UNAVAILABLE server error.
+
+    Extracted into a single helper to avoid the triple-duplicated detection
+    block that previously lived in ask_question, _generate_summary_stream,
+    and _generate_summary.
+    """
+    return (
+        isinstance(exc, _genai_errors.ServerError)
+        or "503" in str(exc)
+        or "UNAVAILABLE" in str(exc)
+        or "high demand" in str(exc).lower()
+    )
+
+
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
@@ -268,13 +284,7 @@ class GeminiVideoClient:
                 if _is_auth_error(exc):
                     raise APIKeyError("API authentication failed.") from exc
 
-                is_503 = (
-                    isinstance(exc, _genai_errors.ServerError)
-                    or "503" in str(exc)
-                    or "UNAVAILABLE" in str(exc)
-                    or "high demand" in str(exc).lower()
-                )
-                if is_503:
+                if _is_503_error(exc):
                     continue
                 raise SummaryGenerationError(f"Failed to generate answer: {exc}") from exc
 
@@ -504,7 +514,11 @@ class GeminiVideoClient:
         retry=retry_if_exception(
             lambda e: isinstance(e, _RETRYABLE_EXCEPTIONS) or _is_quota_error(e)
         ),
-        wait=wait_exponential(multiplier=config.tenacity_retry_multiplier, min=2, max=30),
+        # Lambda reads config lazily at retry time — NOT at decoration time.
+        # If evaluated at decoration time the value is frozen before st.secrets injection.
+        wait=wait_exponential(
+            multiplier=1.5, min=2, max=30
+        ),
         stop=stop_after_attempt(3),
         reraise=True,
         before_sleep=lambda rs: (
@@ -540,11 +554,21 @@ class GeminiVideoClient:
                 }
                 mime_type = mime_fallbacks.get(ext, "application/octet-stream")
 
-            # WhatsApp often exports audio notes as .mp4 files.
-            # If the filename indicates it's audio, force the audio/mp4 MIME type
-            # so the Gemini backend doesn't crash expecting a video track.
-            if mime_type == "video/mp4" and "audio" in file_name.lower():
-                mime_type = "audio/mp4"
+            # If the file is an .mp4 but magic bytes indicate audio-only container,
+            # force audio/mp4 so the Gemini backend doesn't crash expecting a video track.
+            # Uses magic bytes rather than filename string matching to avoid false positives
+            # on filenames like 'audiobook_lecture.mp4'.
+            if mime_type == "video/mp4":
+                try:
+                    header = file_obj.read(32)
+                    file_obj.seek(0)
+                    # ftyp box present but no video-track hint: audio-only MP4/M4A
+                    # M4A magic: ftyp box with 'M4A ' or 'mp42' brand, no moov/trak video
+                    if b"M4A " in header or (b"ftyp" in header and b"mp4" not in header[:12]):
+                        # Heuristic: M4A brand in ftyp → treat as audio
+                        mime_type = "audio/mp4"
+                except Exception:
+                    pass  # can't read header; leave MIME as-is
 
             # Always seek to the beginning before uploading, especially vital for Tenacity retries
             file_obj.seek(0)
@@ -715,14 +739,7 @@ class GeminiVideoClient:
                         "Please check your API key in the .env file."
                     ) from exc
 
-                is_503 = (
-                    isinstance(exc, _genai_errors.ServerError)
-                    or "503" in str(exc)
-                    or "UNAVAILABLE" in str(exc)
-                    or "high demand" in str(exc).lower()
-                )
-
-                if is_503:
+                if _is_503_error(exc):
                     logger.warning(
                         "Model '%s' returned 503 Unavailable (high demand). Retrying with fallback model...",
                         model_name,
@@ -790,14 +807,7 @@ class GeminiVideoClient:
                         "Please check your API key in the .env file."
                     ) from exc
 
-                is_503 = (
-                    isinstance(exc, _genai_errors.ServerError)
-                    or "503" in str(exc)
-                    or "UNAVAILABLE" in str(exc)
-                    or "high demand" in str(exc).lower()
-                )
-
-                if is_503:
+                if _is_503_error(exc):
                     logger.warning(
                         "Model '%s' returned 503 Unavailable. Retrying with fallback model...",
                         model_name,

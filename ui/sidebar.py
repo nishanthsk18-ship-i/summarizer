@@ -90,13 +90,18 @@ def render_sidebar() -> tuple[str, str, str, str]:
                 key="custom_api_key_user_input",
             )
             
-            is_valid_key = bool(api_key_input and (key_exists(api_key_input) or api_key_input.startswith("AIzaSy") or len(api_key_input) > 20))
+            # Accept keys that: (a) exist in our managed DB, OR (b) are direct
+            # Google API keys (start with 'AIzaSy'). Anything else is unverified.
+            is_valid_key = bool(
+                api_key_input
+                and (key_exists(api_key_input) or api_key_input.startswith("AIzaSy"))
+            )
             if is_valid_key:
                 st.markdown('<div style="font-size:11px; color:#68D391; margin-top:-8px; margin-bottom:12px; font-weight:600;">✓ Valid Key</div>', unsafe_allow_html=True)
                 st.session_state.custom_api_key = api_key_input
             elif api_key_input:
-                st.markdown('<div style="font-size:11px; color:#FC8181; margin-top:-8px; margin-bottom:12px; font-weight:600;">⚠️ Unverified Key format</div>', unsafe_allow_html=True)
-                st.session_state.custom_api_key = api_key_input
+                st.markdown('<div style="font-size:11px; color:#FC8181; margin-top:-8px; margin-bottom:12px; font-weight:600;">⚠️ Invalid key — check format</div>', unsafe_allow_html=True)
+                st.session_state.custom_api_key = default_key   # fall back to built-in
             else:
                 st.markdown('<div style="font-size:11px; color:#E2E8F0; opacity:0.6; margin-top:-8px; margin-bottom:12px;">Please enter your API Key</div>', unsafe_allow_html=True)
                 st.session_state.custom_api_key = default_key
@@ -121,7 +126,9 @@ def render_sidebar() -> tuple[str, str, str, str]:
             label_visibility="collapsed",
         )
         selected_model = _model_api_names[selected_model_display]
-        config.gemini_model = selected_model
+        # Store in session_state only — never mutate the global config singleton,
+        # which would cause race conditions in multi-user deployments.
+        st.session_state["selected_model"] = selected_model
 
         st.markdown("---")
 

@@ -117,8 +117,16 @@ class Config:
     upload_speed_mbps: float = 8.0
 
     def __post_init__(self) -> None:
-        """Create temp directory if it doesn't exist."""
-        self.temp_dir.mkdir(parents=True, exist_ok=True)
+        """Create temp directory if it doesn't exist; fall back to system temp on failure."""
+        import tempfile
+        try:
+            self.temp_dir.mkdir(parents=True, exist_ok=True)
+        except OSError as exc:
+            import logging as _log
+            _log.getLogger(__name__).warning(
+                "Could not create temp_dir '%s' (%s). Falling back to system temp.", self.temp_dir, exc
+            )
+            self.temp_dir = Path(tempfile.mkdtemp(prefix="mediasummarizer_"))
 
     @property
     def max_video_size_bytes(self) -> int:

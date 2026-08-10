@@ -18,13 +18,18 @@ from __future__ import annotations
 # via os.getenv(). This is safe to run at import time because st.secrets is
 # available immediately when Streamlit starts — before SessionInfo is needed.
 import os as _os
+import logging as _logging
 try:
     import streamlit as _st_early
     for _k, _v in _st_early.secrets.items():
         if not _os.environ.get(_k):           # don't overwrite real env vars
             _os.environ[_k] = str(_v)
-except Exception:
-    pass  # local dev: .env is used instead; no st.secrets needed
+except Exception as _secrets_exc:
+    # Local dev: .env is used instead; no st.secrets needed.
+    # Log at WARNING so partial-init failures leave evidence in server logs.
+    _logging.getLogger(__name__).warning(
+        "st.secrets injection skipped (likely local dev): %s", _secrets_exc
+    )
 # ─────────────────────────────────────────────────────────────────────────────
 
 import html
@@ -36,7 +41,6 @@ from datetime import datetime
 from pathlib import Path
 
 import streamlit as st
-from audio_recorder_streamlit import audio_recorder  # kept as fallback
 from ui.recorder import render_audio_recorder
 import ui.pipeline_state as _ps
 from ui.loading import show_loading_ui
@@ -448,7 +452,10 @@ for _k, _v in _STATE_DEFAULTS.items():
 # Sidebar
 # ---------------------------------------------------------------------------
 from ui.sidebar import MODEL_DISPLAY_NAMES, render_sidebar
-selected_model, target_language, source_language, extra_instructions = render_sidebar()
+_, target_language, source_language, extra_instructions = render_sidebar()
+# selected_model is stored in session_state by sidebar to avoid mutating the
+# global config singleton (race condition on multi-user Streamlit Cloud).
+selected_model: str = st.session_state.get("selected_model", config.gemini_model)
 
 
 # ---------------------------------------------------------------------------
@@ -570,7 +577,10 @@ with col_upload:
             st.session_state["_inspect_cache_key"] = _inspect_cache_key
             st.session_state["_inspection_cache"] = inspection
         else:
-            # Write temp file, inspect, then delete immediately
+            # Run ffprobe in a background thread so it never blocks Streamlit's
+            # Tornado WebSocket heartbeat. asyncio.run() is safe inside a
+            # ThreadPoolExecutor worker (it has no running event loop).
+            import concurrent.futures as _cf
             import uuid as _uuid
             _tmp = Path(".tmp")
             _tmp.mkdir(exist_ok=True)
@@ -579,13 +589,22 @@ with col_upload:
                 uploaded_file.seek(0)
                 _tmp_in.write_bytes(uploaded_file.read())
                 uploaded_file.seek(0)
-                import asyncio as _asyncio
-                inspection = _asyncio.run(inspect_media(str(_tmp_in)))
+
+                def _run_inspect(_path: str) -> dict:
+                    import asyncio as _ai
+                    return _ai.run(inspect_media(_path))
+
+                with _cf.ThreadPoolExecutor(max_workers=1) as _ex:
+                    _fut = _ex.submit(_run_inspect, str(_tmp_in))
+                    try:
+                        inspection = _fut.result(timeout=30)
+                    except _cf.TimeoutError:
+                        inspection = None  # graceful fallback if ffprobe hangs
                 # Cache to avoid repeat ffprobe calls on re-renders
                 st.session_state["_inspect_cache_key"] = _inspect_cache_key
                 st.session_state["_inspection_cache"] = inspection
             except Exception:
-                pass  # fallback if inspection fails
+                inspection = None  # fallback if inspection fails
             finally:
                 # Always delete the temp file — prevents unbounded disk usage
                 try:

@@ -42,14 +42,15 @@ class JobStatus(str, Enum):
 @dataclass
 class Job:
     """Represents a single queued analysis request."""
-    job_id:   str
-    fn:       Callable[..., Any]
-    args:     tuple[Any, ...]
-    kwargs:   Dict[str, Any]
-    status:   JobStatus         = JobStatus.PENDING
-    result:   Optional[Any]     = None
-    error:    Optional[str]     = None
-    position: int               = 0          # 1-indexed queue depth; 0 = being processed
+    job_id:      str
+    fn:          Callable[..., Any]
+    args:        tuple[Any, ...]
+    kwargs:      Dict[str, Any]
+    status:      JobStatus         = JobStatus.PENDING
+    result:      Optional[Any]     = None
+    error:       Optional[str]     = None
+    position:    int               = 0          # 1-indexed queue depth; 0 = being processed
+    _started_at: float             = 0.0        # monotonic timestamp when job started processing
 
 
 # ---------------------------------------------------------------------------
@@ -130,9 +131,17 @@ class QueueManager:
         Runs forever in the daemon thread.
         Picks one job at a time, executes it, stores the result/error,
         then updates queue positions for remaining pending jobs.
+        Evicts DONE/FAILED jobs older than JOB_TTL_SECONDS to prevent
+        unbounded memory growth.
         """
+        import time as _time
+
+        JOB_TTL_SECONDS = 600  # 10 minutes
+
         while True:
             job = self._queue.get()   # blocks until a job is available
+
+            job._started_at = _time.monotonic()
 
             with self._lock:
                 job.status   = JobStatus.PROCESSING
@@ -159,6 +168,20 @@ class QueueManager:
 
             finally:
                 self._queue.task_done()
+
+            # ── Registry cleanup: evict terminal jobs older than TTL ────────
+            now = _time.monotonic()
+            with self._lock:
+                stale = [
+                    jid for jid, j in self._jobs.items()
+                    if j.status in (JobStatus.DONE, JobStatus.FAILED)
+                    and j._started_at > 0
+                    and (now - j._started_at) > JOB_TTL_SECONDS
+                ]
+                for jid in stale:
+                    del self._jobs[jid]
+            if stale:
+                logger.debug("Evicted %d stale jobs from registry", len(stale))
 
 
 # ---------------------------------------------------------------------------
