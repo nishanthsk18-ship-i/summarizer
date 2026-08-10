@@ -18,3 +18,4 @@ deploy_package/
 # Test cache
 tests/__pycache__/
 .pytest_cache/
+.mypy_cache/

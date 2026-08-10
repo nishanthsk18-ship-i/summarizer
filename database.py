@@ -17,7 +17,7 @@ DB_PATH = Path(__file__).resolve().parent / "keys.db"
 
 def init_db() -> None:
     """Initialize the SQLite database and create the api_keys table if it doesn't exist."""
-    with sqlite3.connect(DB_PATH) as conn:
+    with sqlite3.connect(DB_PATH, timeout=10) as conn:
         cursor = conn.cursor()
         cursor.execute(
             """
@@ -38,7 +38,7 @@ def generate_key(max_quota: int = 10) -> str:
     raw_secret = secrets.token_urlsafe(24)
     new_key = f"live_{raw_secret}"
     
-    with sqlite3.connect(DB_PATH) as conn:
+    with sqlite3.connect(DB_PATH, timeout=10) as conn:
         cursor = conn.cursor()
         cursor.execute(
             "INSERT INTO api_keys (key_string, max_quota) VALUES (?, ?)",
@@ -130,7 +130,7 @@ def key_exists(key_string: str, max_retries: int = 3) -> bool:
 
 def get_active_key() -> str:
     """Return an active API key with available quota, or create a fresh one if none exists."""
-    with sqlite3.connect(DB_PATH) as conn:
+    with sqlite3.connect(DB_PATH, timeout=10) as conn:
         cursor = conn.cursor()
         cursor.execute(
             "SELECT key_string FROM api_keys WHERE usage_count < max_quota ORDER BY id DESC LIMIT 1"

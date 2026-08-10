@@ -35,10 +35,7 @@ def render_result_and_chat(chat_client: GeminiVideoClient | None = None) -> None
         # Rendered / Raw tabs
         tab_rendered, tab_raw = st.tabs(["📖 Rendered Summary", "📋 Raw Markdown"])
         with tab_rendered:
-            st.markdown(
-                f'<div class="summary-container" style="background: rgba(15,15,30,0.85); backdrop-filter: blur(20px); border: 1px solid rgba(255,255,255,0.08); border-radius: 24px; padding: 28px 32px; box-shadow: 0 8px 32px rgba(0,0,0,0.4);">{result.summary_markdown}</div>',
-                unsafe_allow_html=True,
-            )
+            st.markdown(result.summary_markdown)
         with tab_raw:
             st.code(result.summary_markdown, language="markdown")
 

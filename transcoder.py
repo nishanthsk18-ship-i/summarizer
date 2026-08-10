@@ -518,12 +518,13 @@ async def transcode_with_fallback(
         _log("📱 Android video detected — applying device-specific conversion flags…")
 
     # ── Tier 1: Nuclear video + audio transcode ────────────────────────
+    uid = uuid.uuid4().hex
     if audio_only_mode:
-        tier1_out = _TMP_DIR / f"{stem}_audio_fixed.mp4"
+        tier1_out = _TMP_DIR / f"{uid}_{stem}_audio_fixed.mp4"
         tier1_cmd = _build_audio_only_video_cmd(in_path, tier1_out)
         _log("🔄 Audio codec incompatible — re-encoding audio stream only…")
     else:
-        tier1_out = _TMP_DIR / f"{stem}_transcoded.mp4"
+        tier1_out = _TMP_DIR / f"{uid}_{stem}_transcoded.mp4"
         tier1_cmd = _build_nuclear_video_cmd(in_path, tier1_out, is_iphone=is_iphone, is_android=is_android)
         reasons = inspection.get("reasons", [])
         _log(f"🔄 Transcoding to H.264 — reasons: {'; '.join(reasons) or 'container compatibility'}")
@@ -570,7 +571,7 @@ async def transcode_with_fallback(
 
     # ── Tier 2: Audio extraction fallback ─────────────────────────────
     _log("⚠️ Video transcode failed — extracting audio track for AI processing…")
-    tier2_out = _TMP_DIR / f"{stem}_audio.m4a"
+    tier2_out = _TMP_DIR / f"{uid}_{stem}_audio.m4a"
     tier2_cmd = _build_audio_extract_cmd(in_path, tier2_out)
 
     try:
