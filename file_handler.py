@@ -54,8 +54,9 @@ class InvalidFileTypeError(Exception):
 
 
 def is_audio_file(filename: str) -> bool:
-    """Return True if ``filename`` has a recognised audio extension."""
-    return Path(filename).suffix.lower() in ACCEPTED_AUDIO_EXTENSIONS
+    """Return True if ``filename`` has a recognised audio extension or is a recorded audio file."""
+    ext = Path(filename).suffix.lower()
+    return ext in ACCEPTED_AUDIO_EXTENSIONS or filename.startswith("recorded_audio")
 
 
 def is_video_file(filename: str) -> bool:

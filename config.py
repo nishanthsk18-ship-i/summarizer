@@ -59,7 +59,7 @@ ACCEPTED_VIDEO_EXTENSIONS: list[str] = [
 
 ACCEPTED_AUDIO_EXTENSIONS: list[str] = [
     ".mp3", ".wav", ".flac", ".aac", ".ogg",
-    ".wma", ".m4a", ".opus",
+    ".wma", ".m4a", ".opus", ".weba",
 ]
 
 # Combined list for validation

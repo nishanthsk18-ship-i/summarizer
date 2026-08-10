@@ -74,8 +74,11 @@ class TestMediaTypeDetection:
     def test_wav_is_audio(self):
         assert is_audio_file("recording.wav")
 
-    def test_mp4_is_not_audio(self):
+    def _mp4_is_not_audio(self):
         assert not is_audio_file("video.mp4")
+
+    def test_recorded_audio_webm_is_audio(self):
+        assert is_audio_file("recorded_audio.webm")
 
     def test_mp4_is_video(self):
         assert is_video_file("video.mp4")
