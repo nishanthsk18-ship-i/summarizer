@@ -17,18 +17,9 @@ from dotenv import load_dotenv
 # Load .env from the project root — override=True ensures .env wins over stale
 # system-level env vars that may have been set before the process started.
 load_dotenv(Path(__file__).resolve().parent / ".env", override=True)
-
-
-def _get_secret(key: str, default: str = "") -> str:
-    """Read from Streamlit Cloud secrets first, then fall back to env vars / .env."""
-    try:
-        import streamlit as st  # lazy import to avoid circular dependency
-        val = st.secrets.get(key, "")
-        if val:
-            return str(val)
-    except Exception:
-        pass
-    return os.getenv(key, default)
+# NOTE: On Streamlit Cloud, app.py injects st.secrets into os.environ BEFORE
+# importing this module, so all os.getenv() calls below transparently pick up
+# cloud secrets without needing to call st.secrets here at import time.
 
 
 # ---------------------------------------------------------------------------
@@ -85,8 +76,8 @@ class Config:
     """Application-wide configuration values."""
 
     # Gemini credentials & model
-    gemini_api_key: str = field(default_factory=lambda: _get_secret("GEMINI_API_KEY", ""))
-    gemini_model: str = field(default_factory=lambda: _get_secret("GEMINI_MODEL", "gemini-3.5-flash"))
+    gemini_api_key: str = field(default_factory=lambda: os.getenv("GEMINI_API_KEY", ""))
+    gemini_model: str = field(default_factory=lambda: os.getenv("GEMINI_MODEL", "gemini-3.5-flash"))
 
     # File limits
     max_video_size_mb: int = field(

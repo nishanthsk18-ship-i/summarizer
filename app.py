@@ -13,6 +13,20 @@ UI layout:
 
 from __future__ import annotations
 
+# ── Streamlit Cloud secret injection ──────────────────────────────────────────
+# Must happen BEFORE any other imports so that config.py picks up cloud secrets
+# via os.getenv(). This is safe to run at import time because st.secrets is
+# available immediately when Streamlit starts — before SessionInfo is needed.
+import os as _os
+try:
+    import streamlit as _st_early
+    for _k, _v in _st_early.secrets.items():
+        if not _os.environ.get(_k):           # don't overwrite real env vars
+            _os.environ[_k] = str(_v)
+except Exception:
+    pass  # local dev: .env is used instead; no st.secrets needed
+# ─────────────────────────────────────────────────────────────────────────────
+
 import html
 import io
 import typing
