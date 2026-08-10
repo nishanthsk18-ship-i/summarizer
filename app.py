@@ -14,22 +14,27 @@ UI layout:
 from __future__ import annotations
 
 # ── Streamlit Cloud secret injection ──────────────────────────────────────────
-# Must happen BEFORE any other imports so that config.py picks up cloud secrets
-# via os.getenv(). This is safe to run at import time because st.secrets is
-# available immediately when Streamlit starts — before SessionInfo is needed.
+# Safely parse secrets from TOML files at import time, without invoking
+# st.secrets before SessionInfo is initialized.
 import os as _os
 import logging as _logging
-try:
-    import streamlit as _st_early
-    for _k, _v in _st_early.secrets.items():
-        if not _os.environ.get(_k):           # don't overwrite real env vars
-            _os.environ[_k] = str(_v)
-except Exception as _secrets_exc:
-    # Local dev: .env is used instead; no st.secrets needed.
-    # Log at WARNING so partial-init failures leave evidence in server logs.
-    _logging.getLogger(__name__).warning(
-        "st.secrets injection skipped (likely local dev): %s", _secrets_exc
-    )
+from pathlib import Path as _Path
+
+_secret_files = [
+    _Path(".streamlit/secrets.toml"),
+    _Path.home() / ".streamlit" / "secrets.toml",
+]
+for _sp in _secret_files:
+    if _sp.exists():
+        try:
+            import tomllib as _tomllib
+            with open(_sp, "rb") as _sf:
+                _sdata = _tomllib.load(_sf)
+                for _k, _v in _sdata.items():
+                    if isinstance(_v, (str, int, float, bool)) and not _os.environ.get(_k):
+                        _os.environ[_k] = str(_v)
+        except Exception as _se:
+            _logging.getLogger(__name__).warning("Error reading secrets TOML file %s: %s", _sp, _se)
 # ─────────────────────────────────────────────────────────────────────────────
 
 import html
@@ -111,6 +116,15 @@ def _run_startup_health_checks() -> None:
     import time
     from database import init_db
     from transcoder import is_ffmpeg_available, is_ffprobe_available
+
+    # 0. Read st.secrets safely now that st.set_page_config() has executed
+    try:
+        if hasattr(st, "secrets") and st.secrets:
+            for _k, _v in st.secrets.items():
+                if isinstance(_v, (str, int, float, bool)) and not os.environ.get(_k):
+                    os.environ[_k] = str(_v)
+    except Exception:
+        pass
 
     # 1. Initialize SQLite DB
     init_db()
@@ -994,12 +1008,10 @@ if (analyse_clicked or mp3_clicked) and uploaded_file is not None:
                         inspection["needs_transcode"] = False  # Converted MP3 is compatible
                     except TranscodeError as exc:
                         logger.error("MP4->MP3 extraction failed: %s", exc)
-                        st.session_state.error_msg = (
-                            "Audio extraction failed. "
-                            "Try '🚀 Analyse Media' to process the full video instead."
-                        )
-                        st.session_state.processing = False
-                        st.stop()
+                        raise TranscodeError(
+                            input_path=str(_tmp_in),
+                            reasons=["Audio extraction failed. Try '🚀 Analyse Media' to process the full video instead."]
+                        ) from exc
 
                 # ── Step 2: Transcode if needed ───────────────────────────
                 processing_mode = "full_video"
@@ -1090,8 +1102,6 @@ if (analyse_clicked or mp3_clicked) and uploaded_file is not None:
                         local_deleted=True,
                         cloud_deleted=bool(transcoded_path or mp3_path),
                     )
-                st.session_state.mp3_path = None
-                st.session_state.conversion_mode = None
 
 
         job_id = get_queue_manager().submit(_run_analysis)
