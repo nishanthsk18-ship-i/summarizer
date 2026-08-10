@@ -558,12 +558,24 @@ with col_upload:
             f"{human_readable_size(file_size)}</div>",
             unsafe_allow_html=True,
         )
-        # Audio vs video preview
-        if is_audio_file(uploaded_file.name):
-            st.audio(uploaded_file)
-        else:
-            st.video(uploaded_file)
-        uploaded_file.seek(0)   # reset again after preview reads it
+        # Audio vs video preview safely using raw bytes (getvalue()) to avoid
+        # Streamlit Cloud's UploadedFile MediaFileManager SessionInfo crash.
+        try:
+            if hasattr(uploaded_file, "getvalue"):
+                _preview_data = uploaded_file.getvalue()
+            else:
+                uploaded_file.seek(0)
+                _preview_data = uploaded_file.read()
+                uploaded_file.seek(0)
+
+            if is_audio_file(uploaded_file.name):
+                st.audio(_preview_data)
+            else:
+                st.video(_preview_data)
+        except Exception as _prev_exc:
+            logger.warning("Media preview skipped: %s", _prev_exc)
+        finally:
+            uploaded_file.seek(0)
 
         # Cache inspection result in session_state keyed by (filename, filesize)
         # so we don't re-run ffprobe on every Streamlit rerender
