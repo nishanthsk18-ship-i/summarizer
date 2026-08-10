@@ -118,7 +118,12 @@ def _run_startup_health_checks() -> None:
 
     # 4. Check GEMINI_API_KEY
     if not config.gemini_api_key:
-        st.error("❌ **API Key is not configured.** Please add your API key to the `.env` file.")
+        st.error(
+            "❌ **API Key is not configured.**\n\n"
+            "- **Streamlit Cloud**: Go to your app → ⚙️ Settings → **Secrets** and add:\n"
+            "  ```\n  GEMINI_API_KEY = \"AIzaSy...\"\n  ```\n"
+            "- **Local**: Add `GEMINI_API_KEY=AIzaSy...` to your `.env` file."
+        )
 
 _run_startup_health_checks()
 
