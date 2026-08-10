@@ -1223,10 +1223,10 @@ function processSpectralGate() {
 // ═══════════════════════════════════════════════════════════════════════════
 
 function getBitrate(durationSeconds) {
-  if (durationSeconds < 300)   return 128000;  // 0-5min: 128kbps
-  if (durationSeconds < 900)   return 96000;   // 5-15min: 96kbps
-  if (durationSeconds < 1800)  return 64000;   // 15-30min: 64kbps
-  return 48000;                                 // 30min+: 48kbps
+  if (durationSeconds < 300)   return 48000;  // 0-5min: 48kbps (high-clarity voice speech)
+  if (durationSeconds < 900)   return 32000;  // 5-15min: 32kbps
+  if (durationSeconds < 1800)  return 24000;  // 15-30min: 24kbps
+  return 16000;                               // 30min+: 16kbps
 }
 
 function makeMR(bitrate) {
@@ -1973,6 +1973,10 @@ async function validateAndPassBlob(blob) {
 
 document.getElementById('btnUse').addEventListener('click', () => {
   if (!finalBlob) return;
+  const btn = document.getElementById('btnUse');
+  if (btn.disabled) return;
+  btn.disabled = true;
+  btn.textContent = '✓ Recording Saved!';
   validateAndPassBlob(finalBlob);
 });
 
