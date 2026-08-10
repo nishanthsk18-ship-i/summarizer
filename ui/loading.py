@@ -466,7 +466,7 @@ def show_loading_ui(
     if retry_attempt > 0:
         calculated_height += 120
 
-    components.html(full_html, height=calculated_height, scrolling=False)
+    components.html(full_html, height=calculated_height, scrolling=False, key="loading_ui_iframe")
 
 
 # ---------------------------------------------------------------------------
