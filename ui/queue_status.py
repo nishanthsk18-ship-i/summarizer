@@ -76,7 +76,7 @@ def _render_active_pipeline(job_id: str | None = None) -> None:
             stage_message=f"Uploaded '{file_name or 'media file'}'",
             file_name=file_name,
             file_size=size_str,
-            file_format="MP4",
+            file_format=Path(file_name).suffix.lstrip(".").upper() or "AUDIO",
             is_compatible=True,
             skipped_stages=skipped,
         )
