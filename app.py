@@ -586,16 +586,21 @@ with col_upload:
             inspection = st.session_state.get("_inspection_cache")
         elif is_audio_file(uploaded_file.name):
             # Audio files do not require HEVC/VFR video inspection — skip main thread ffprobe
+            ext = Path(uploaded_file.name).suffix.lower()
+            needs_conv = (
+                ext in {".mpeg", ".mpg", ".wma", ".aiff"}
+                or any(f"{ae}." in uploaded_file.name.lower() for ae in ACCEPTED_AUDIO_EXTENSIONS)
+            )
             inspection = {
-                "needs_transcode": False,
-                "needs_audio_only": True,
+                "needs_transcode": needs_conv,
+                "needs_audio_only": needs_conv,
                 "is_vfr": False,
                 "is_iphone": False,
                 "is_android": False,
                 "video_codec": "",
                 "audio_codec": "native",
-                "container": Path(uploaded_file.name).suffix.lstrip("."),
-                "reasons": [],
+                "container": ext.lstrip("."),
+                "reasons": ["Non-standard or compound audio format — converting to AAC/MP3"] if needs_conv else [],
                 "duration_seconds": 0.0,
                 "file_size_bytes": file_size,
                 "is_video_file": False,

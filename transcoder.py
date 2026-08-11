@@ -88,6 +88,7 @@ _INCOMPATIBLE_CONTAINERS: set[str] = {
     "wmv", "asf",                     # Windows Media
     "rm", "rmvb",                     # RealMedia
     "3gp", "3g2",                     # Mobile / old Android
+    "mpeg", "mpg", "mpegts", "m2ts",  # MPEG Program / Transport Streams
 }
 
 _COMPATIBLE_PIX_FMTS: set[str] = {"yuv420p", "yuvj420p"}
