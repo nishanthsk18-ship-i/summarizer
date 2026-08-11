@@ -21,32 +21,41 @@ logger = logging.getLogger(__name__)
 _fragment = getattr(st, "fragment", getattr(st, "experimental_fragment", None))
 
 
-def _queue_status_body() -> bool:
+def _queue_status_body() -> None:
     """
     Check active queue job and render the unified loading UI.
     Auto-refreshes every 2 seconds via Streamlit fragment (non-blocking).
+    When the job finishes, collects the result into session_state and
+    triggers a full-page rerun to display the summary or error.
     """
     manager = get_queue_manager()
 
     job_id = st.session_state.get("queue_job_id")
     if not job_id:
-        return False
+        return
 
     job = manager.get_job(job_id)
     if not job:
         st.session_state.queue_job_id = None
-        return False
+        return
 
     if job.status == JobStatus.PENDING:
         _render_pending_panel(job.position)
-        return True
+        return
 
     if job.status == JobStatus.PROCESSING:
         _render_active_pipeline(job_id)
-        return True
+        return
 
-    # DONE or FAILED — caller handles result
-    return False
+    # ── DONE or FAILED: collect result and trigger full-page re-render ──
+    st.session_state.queue_job_id = None  # clear poll so we don't loop
+    if job.status == JobStatus.DONE and job.result is not None:
+        st.session_state.result = job.result
+        st.session_state.current_remote_file = job.result.remote_file_name
+    elif job.error:
+        st.session_state.error_msg = job.error
+        st.session_state.result = None  # clear stale result
+    st.rerun()  # re-render full page to show summary / error panel
 
 
 if _fragment is not None:

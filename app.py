@@ -1149,18 +1149,7 @@ if (analyse_clicked or mp3_clicked) and uploaded_file is not None:
 # ---------------------------------------------------------------------------
 _active_job_id: str | None = st.session_state.get("queue_job_id")
 if _active_job_id is not None:
-    _still_waiting = render_queue_status()
-    if not _still_waiting:
-        # Job finished — collect result or error
-        _job = get_queue_manager().get_job(_active_job_id)
-        st.session_state.queue_job_id = None    # clear so we don't re-poll
-        if _job is not None and _job.status.value == "done" and _job.result is not None:
-            st.session_state.result = _job.result
-            st.session_state.current_remote_file = _job.result.remote_file_name
-        elif _job is not None and _job.error:
-            st.session_state.error_msg = _job.error
-            # Clear stale result so the error panel isn't obscured by old output
-            st.session_state.result = None
+    render_queue_status()
 
 
 # ---------------------------------------------------------------------------
