@@ -588,7 +588,7 @@ with col_upload:
             # Audio files do not require HEVC/VFR video inspection — skip main thread ffprobe
             ext = Path(uploaded_file.name).suffix.lower()
             needs_conv = (
-                ext in {".mpeg", ".mpg", ".wma", ".aiff"}
+                ext in {".mpeg", ".mpg", ".wma", ".aiff", ".mp2", ".mp1"}
                 or any(f"{ae}." in uploaded_file.name.lower() for ae in ACCEPTED_AUDIO_EXTENSIONS)
             )
             inspection = {
@@ -600,7 +600,7 @@ with col_upload:
                 "video_codec": "",
                 "audio_codec": "native",
                 "container": ext.lstrip("."),
-                "reasons": ["Non-standard or compound audio format — converting to AAC/MP3"] if needs_conv else [],
+                "reasons": ["MPEG or non-standard audio format — auto-converting to AAC/MP3 for AI compatibility"] if needs_conv else [],
                 "duration_seconds": 0.0,
                 "file_size_bytes": file_size,
                 "is_video_file": False,
