@@ -6,7 +6,7 @@
 google-genai==0.8.0
 
 # Streamlit UI framework
-streamlit==1.35.0
+streamlit>=1.37.0
 
 # Environment variable management
 python-dotenv==1.0.1
