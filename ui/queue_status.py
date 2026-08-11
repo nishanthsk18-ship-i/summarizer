@@ -18,9 +18,11 @@ from queue_worker import JobStatus, get_queue_manager
 logger = logging.getLogger(__name__)
 
 
+@st.fragment(run_every="2s")
 def render_queue_status() -> bool:
     """
     Check active queue job and render the unified loading UI.
+    Auto-refreshes every 2 seconds via Streamlit fragment (non-blocking).
     """
     manager = get_queue_manager()
 
@@ -35,14 +37,10 @@ def render_queue_status() -> bool:
 
     if job.status == JobStatus.PENDING:
         _render_pending_panel(job.position)
-        time.sleep(2)
-        st.rerun()
         return True
 
     if job.status == JobStatus.PROCESSING:
         _render_active_pipeline(job_id)
-        time.sleep(2)
-        st.rerun()
         return True
 
     # DONE or FAILED — caller handles result
