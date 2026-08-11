@@ -55,7 +55,13 @@ def _queue_status_body() -> None:
     elif job.error:
         st.session_state.error_msg = job.error
         st.session_state.result = None  # clear stale result
-    st.rerun()  # re-render full page to show summary / error panel
+
+    # st.rerun(scope="app") triggers a FULL page rerun (not just the fragment).
+    # Streamlit 1.37+ supports scope parameter; fall back gracefully for older.
+    try:
+        st.rerun(scope="app")
+    except TypeError:
+        st.rerun()
 
 
 if _fragment is not None:
