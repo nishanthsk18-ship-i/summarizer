@@ -1,19 +1,19 @@
 """
-app.py â€” Streamlit UI for the Multilingual AI Media Summarizer.
+app.py — Streamlit UI for the Multilingual AI Media Summarizer.
 
 Run with:
     streamlit run app.py
 
 UI layout:
-  Sidebar  â€” API key, model selection, language, custom instructions.
-  Main     â€” Upload zone, media preview, 4-stage visual progress bar,
+  Sidebar  — API key, model selection, language, custom instructions.
+  Main     — Upload zone, media preview, 4-stage visual progress bar,
              live log, tabbed summary output, download buttons.
-  Footer   â€” Attribution.
+  Footer   — Attribution.
 """
 
 from __future__ import annotations
 
-# â”€â”€ Streamlit Cloud secret injection â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# ── Streamlit Cloud secret injection ──────────────────────────────────────────
 # Safely parse secrets from TOML files at import time, without invoking
 # st.secrets before SessionInfo is initialized.
 import os as _os
@@ -35,7 +35,7 @@ for _sp in _secret_files:
                         _os.environ[_k] = str(_v)
         except Exception as _se:
             _logging.getLogger(__name__).warning("Error reading secrets TOML file %s: %s", _sp, _se)
-# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# ─────────────────────────────────────────────────────────────────────────────
 
 import html
 import io
@@ -75,7 +75,7 @@ from ui.queue_status import render_queue_status
 # ---------------------------------------------------------------------------
 logging.basicConfig(
     level=logging.DEBUG if config.debug else logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(name)s â€” %(message)s",
+    format="%(asctime)s [%(levelname)s] %(name)s — %(message)s",
 )
 logger = logging.getLogger(__name__)
 
@@ -89,7 +89,7 @@ logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
-# Page config  â† must be the FIRST Streamlit call
+# Page config  ← must be the FIRST Streamlit call
 # ---------------------------------------------------------------------------
 st.set_page_config(
     page_title=config.app_title,
@@ -103,7 +103,7 @@ st.set_page_config(
     },
 )
 
-# Startup disk hygiene â€” cleanup orphaned files older than 1h from prior crashed runs
+# Startup disk hygiene — cleanup orphaned files older than 1h from prior crashed runs
 from file_handler import cleanup_stale_temp_files
 cleanup_stale_temp_files(max_age_seconds=3600)
 
@@ -143,7 +143,7 @@ def _run_startup_health_checks() -> None:
     # 3. Check FFmpeg / ffprobe availability warning
     if not is_ffmpeg_available() or not is_ffprobe_available():
         st.warning(
-            "âš ï¸ **FFmpeg / ffprobe binary not found on system PATH.** "
+            "⚠️ **FFmpeg / ffprobe binary not found on system PATH.** "
             "Media inspection and transcoding features will be limited. "
             "Please install FFmpeg: `winget install FFmpeg` (Windows) or `brew install ffmpeg` (macOS)."
         )
@@ -151,8 +151,8 @@ def _run_startup_health_checks() -> None:
     # 4. Check GEMINI_API_KEY
     if not config.gemini_api_key:
         st.error(
-            "âŒ **API Key is not configured.**\n\n"
-            "- **Streamlit Cloud**: Go to your app â†’ âš™ï¸ Settings â†’ **Secrets** and add:\n"
+            "❌ **API Key is not configured.**\n\n"
+            "- **Streamlit Cloud**: Go to your app → ⚙️ Settings → **Secrets** and add:\n"
             "  ```\n  GEMINI_API_KEY = \"AIzaSy...\"\n  ```\n"
             "- **Local**: Add `GEMINI_API_KEY=AIzaSy...` to your `.env` file."
         )
@@ -160,14 +160,14 @@ def _run_startup_health_checks() -> None:
 _run_startup_health_checks()
 
 # ---------------------------------------------------------------------------
-# CSS â€” premium dark-mode
+# CSS — premium dark-mode
 # ---------------------------------------------------------------------------
 st.markdown(
     """
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Fira+Code:wght@400;500&display=swap');
 
-/* â”€â”€ Global Design Tokens â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ── Global Design Tokens ─────────────────────────────────────────── */
 :root {
     --bg-primary:      #0A0A14;
     --bg-secondary:    #0F0F1E;
@@ -198,14 +198,14 @@ html, body, [class*="css"] {
 
 .main .block-container { padding: 2rem 3rem; max-width: 1200px; position: relative; z-index: 1; }
 
-/* â”€â”€ Scrollbars & Selection â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ── Scrollbars & Selection ───────────────────────────────────────── */
 ::-webkit-scrollbar { width: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: rgba(99, 179, 237, 0.3); border-radius: 100px; }
 ::-webkit-scrollbar-thumb:hover { background: rgba(99, 179, 237, 0.6); }
 ::selection { background: rgba(99, 179, 237, 0.3); color: white; }
 
-/* â”€â”€ Background Drifting Orbs â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ── Background Drifting Orbs ─────────────────────────────────────── */
 @keyframes orb-float-1 {
     0%, 100% { transform: translate(0px, 0px); }
     50%       { transform: translate(120px, 80px); }
@@ -215,7 +215,7 @@ html, body, [class*="css"] {
     50%       { transform: translate(-120px, -80px); }
 }
 
-/* â”€â”€ Sidebar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ── Sidebar ──────────────────────────────────────────────────────── */
 section[data-testid="stSidebar"] {
     background: rgba(10, 10, 20, 0.95) !important;
     border-right: 1px solid var(--glass-border) !important;
@@ -223,7 +223,7 @@ section[data-testid="stSidebar"] {
 }
 section[data-testid="stSidebar"] .block-container { padding: 1.5rem 1rem; }
 
-/* â”€â”€ Hero â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ── Hero ─────────────────────────────────────────────────────────── */
 .hero-header {
     background: var(--glass-bg);
     backdrop-filter: blur(20px);
@@ -242,7 +242,7 @@ section[data-testid="stSidebar"] .block-container { padding: 1.5rem 1rem; }
 }
 .hero-subtitle { color: var(--text-secondary); font-size: 1rem; font-weight: 400; }
 
-/* â”€â”€ Glass Cards â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ── Glass Cards ─────────────────────────────────────────────────── */
 .card {
     background: var(--glass-bg);
     backdrop-filter: blur(20px);
@@ -259,7 +259,7 @@ section[data-testid="stSidebar"] .block-container { padding: 1.5rem 1rem; }
     display: flex; align-items: center; gap: 0.5rem;
 }
 
-/* â”€â”€ Drag & Drop File Uploader Zone â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ── Drag & Drop File Uploader Zone ───────────────────────────────── */
 [data-testid="stFileUploader"] {
     border: 2px dashed rgba(99,179,237,0.25) !important;
     border-radius: var(--radius-card) !important;
@@ -273,11 +273,11 @@ section[data-testid="stSidebar"] .block-container { padding: 1.5rem 1rem; }
     transform: scale(1.005);
 }
 
-/* â”€â”€ Fix Streamlit native progress bar & iframe â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ── Fix Streamlit native progress bar & iframe ────────────────────── */
 .stProgress, div[data-testid="stProgressBar"] { display: none !important; }
 iframe { border: none !important; }
 
-/* â”€â”€ Button Styling (Analyse & Extract) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ── Button Styling (Analyse & Extract) ───────────────────────────── */
 div[data-testid="stButton"] > button {
     height: 56px !important;
     background: linear-gradient(135deg, #63B3ED 0%, #4299E1 100%) !important;
@@ -298,7 +298,7 @@ button[key="extract_mp3_btn"] {
     box-shadow: 0 4px 24px rgba(159,122,234,0.35) !important;
 }
 
-/* â”€â”€ Inputs â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ── Inputs ───────────────────────────────────────────────────────── */
 .stSelectbox > div > div,
 .stTextArea > div > div > textarea,
 .stTextInput > div > div > input {
@@ -315,12 +315,12 @@ button[key="extract_mp3_btn"] {
     box-shadow: 0 0 0 3px rgba(99,179,237,0.15) !important;
 }
 
-/* â”€â”€ Reduced motion compliance â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ── Reduced motion compliance ────────────────────────────────────── */
 @media (prefers-reduced-motion: reduce) {
     * { animation: none !important; transition: none !important; }
 }
 
-/* â”€â”€ Export / Download Buttons â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ── Export / Download Buttons ──────────────────────────────────── */
 div[data-testid="stDownloadButton"] > button {
     border-radius: 50px !important;
     padding: 10px 20px !important;
@@ -334,7 +334,7 @@ div[data-testid="stDownloadButton"] > button {
     width: 100% !important;
 }
 
-/* PDF button â€” coral/red accent */
+/* PDF button — coral/red accent */
 div[data-testid="stDownloadButton"][data-key="export_pdf_btn"] > button {
     background: linear-gradient(135deg, rgba(252,129,74,0.15), rgba(252,129,74,0.06)) !important;
     color: #FC8174 !important;
@@ -346,7 +346,7 @@ div[data-testid="stDownloadButton"][data-key="export_pdf_btn"] > button:hover {
     transform: translateY(-2px) !important;
 }
 
-/* DOCX button â€” blue accent */
+/* DOCX button — blue accent */
 div[data-testid="stDownloadButton"][data-key="export_docx_btn"] > button {
     background: linear-gradient(135deg, rgba(99,179,237,0.15), rgba(99,179,237,0.06)) !important;
     color: #63B3ED !important;
@@ -358,7 +358,7 @@ div[data-testid="stDownloadButton"][data-key="export_docx_btn"] > button:hover {
     transform: translateY(-2px) !important;
 }
 
-/* Markdown button â€” green accent */
+/* Markdown button — green accent */
 div[data-testid="stDownloadButton"][data-key="export_md_btn"] > button {
     background: linear-gradient(135deg, rgba(104,211,145,0.15), rgba(104,211,145,0.06)) !important;
     color: #68D391 !important;
@@ -384,10 +384,10 @@ div[data-testid="stDownloadButton"][data-key="export_md_btn"] > button:hover {
 # ---------------------------------------------------------------------------
 
 _STAGES = [
-    ("ðŸ“¤", "Upload"),
-    ("âš™ï¸", "Process"),
-    ("ðŸ¤–", "Generate"),
-    ("âœ…", "Done"),
+    ("📤", "Upload"),
+    ("⚙️", "Process"),
+    ("🤖", "Generate"),
+    ("✅", "Done"),
 ]
 
 
@@ -402,7 +402,7 @@ def _stage_html(active_index: int) -> str:
     for i, (icon, label) in enumerate(_STAGES):
         if i < active_index:
             css = "done"
-            icon_render = "âœ“"
+            icon_render = "✓"
         elif i == active_index:
             css = "current"
             icon_render = icon
@@ -417,13 +417,13 @@ def _stage_html(active_index: int) -> str:
             f"</div>"
         )
         if i < len(_STAGES) - 1:
-            items.append('<span class="stage-arrow">â€º</span>')
+            items.append('<span class="stage-arrow">›</span>')
 
     return '<div class="stage-bar">' + "".join(items) + "</div>"
 
 
 def _progress_fraction_to_stage(fraction: float) -> int:
-    """Map a 0â€“1 fraction to a stage index (0â€“3)."""
+    """Map a 0–1 fraction to a stage index (0–3)."""
     if fraction < 0.25:
         return 0
     if fraction < 0.55:
@@ -446,11 +446,11 @@ _STATE_DEFAULTS: dict = {
     "chat_history":           [],
     "current_remote_file":    None,
     "queue_job_id":           None,   # Active queue job ID (None = no pending job)
-    # â”€â”€ Recorder session state (populated by ui/recorder.py) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # ── Recorder session state (populated by ui/recorder.py) ──────────────
     "recorder_clips":         [],     # list[str] MM:SS timestamps of clipping events
     "recorder_quality_score": 0,      # int 0-100 composite quality score
     "recorder_segments":      [],     # list[dict] timeline segments
-    # â”€â”€ Upload info (for Stage 1 card) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # ── Upload info (for Stage 1 card) ─────────────────────────────────
     "upload_file_name":       "",
     "upload_file_size":       0,
     "upload_file_fmt":        "",
@@ -478,14 +478,14 @@ selected_model: str = st.session_state.get("selected_model", config.gemini_model
 st.markdown(
     """
 <div class="hero-header">
-    <div class="hero-title">ðŸŽ¬ Multimodal AI Media Summarizer</div>
+    <div class="hero-title">🎬 Multimodal AI Media Summarizer</div>
     <div class="hero-subtitle">
-        Upload a lecture, meeting, or recording â€” get a complete AI-powered summary in seconds.
+        Upload a lecture, meeting, or recording — get a complete AI-powered summary in seconds.
     </div>
     <div style="display: flex; justify-content: center; gap: 12px; margin-top: 16px; flex-wrap: wrap;">
-        <span style="padding: 4px 14px; border-radius: 100px; background: rgba(99, 179, 237, 0.1); border: 1px solid rgba(99, 179, 237, 0.25); color: #63B3ED; font-size: 11px; font-weight: 600;">ðŸŽ“ Lecture Mode</span>
-        <span style="padding: 4px 14px; border-radius: 100px; background: rgba(104, 211, 145, 0.1); border: 1px solid rgba(104, 211, 145, 0.25); color: #68D391; font-size: 11px; font-weight: 600;">ðŸ”’ Zero Footprint</span>
-        <span style="padding: 4px 14px; border-radius: 100px; background: rgba(159, 122, 234, 0.1); border: 1px solid rgba(159, 122, 234, 0.25); color: #9F7AEA; font-size: 11px; font-weight: 600;">âš¡ Advanced AI Engine</span>
+        <span style="padding: 4px 14px; border-radius: 100px; background: rgba(99, 179, 237, 0.1); border: 1px solid rgba(99, 179, 237, 0.25); color: #63B3ED; font-size: 11px; font-weight: 600;">🎓 Lecture Mode</span>
+        <span style="padding: 4px 14px; border-radius: 100px; background: rgba(104, 211, 145, 0.1); border: 1px solid rgba(104, 211, 145, 0.25); color: #68D391; font-size: 11px; font-weight: 600;">🔒 Zero Footprint</span>
+        <span style="padding: 4px 14px; border-radius: 100px; background: rgba(159, 122, 234, 0.1); border: 1px solid rgba(159, 122, 234, 0.25); color: #9F7AEA; font-size: 11px; font-weight: 600;">⚡ Advanced AI Engine</span>
     </div>
 </div>
 """,
@@ -499,9 +499,9 @@ st.markdown(
 col_upload, col_opts = st.columns([3, 2], gap="large")
 
 with col_upload:
-    st.markdown('<div class="card-header">ðŸ“ Media Input</div>', unsafe_allow_html=True)
+    st.markdown('<div class="card-header">📁 Media Input</div>', unsafe_allow_html=True)
     
-    tab_upload, tab_record = st.tabs(["ðŸ“ File Upload", "ðŸŽ¤ Record Audio"])
+    tab_upload, tab_record = st.tabs(["📁 File Upload", "🎤 Record Audio"])
     
     with tab_upload:
         raw_uploaded_file = st.file_uploader(
@@ -554,7 +554,7 @@ with col_upload:
 
         st.markdown(
             f'<div style="margin-top:0.75rem;color:#94a3b8;font-size:0.85rem">'
-            f"ðŸ“„ <strong>{uploaded_file.name}</strong> Â· "
+            f"📄 <strong>{uploaded_file.name}</strong> · "
             f"{human_readable_size(file_size)}</div>",
             unsafe_allow_html=True,
         )
@@ -585,7 +585,7 @@ with col_upload:
         if st.session_state.get("_inspect_cache_key") == _inspect_cache_key:
             inspection = st.session_state.get("_inspection_cache")
         elif is_audio_file(uploaded_file.name):
-            # Audio files do not require HEVC/VFR video inspection â€” skip main thread ffprobe
+            # Audio files do not require HEVC/VFR video inspection — skip main thread ffprobe
             ext = Path(uploaded_file.name).suffix.lower()
             needs_conv = (
                 ext in {".mpeg", ".mpg", ".wma", ".aiff", ".mp2", ".mp1"}
@@ -600,7 +600,7 @@ with col_upload:
                 "video_codec": "",
                 "audio_codec": "native",
                 "container": ext.lstrip("."),
-                "reasons": ["MPEG or non-standard audio format â€” auto-converting to AAC/MP3 for AI compatibility"] if needs_conv else [],
+                "reasons": ["MPEG or non-standard audio format — auto-converting to AAC/MP3 for AI compatibility"] if needs_conv else [],
                 "duration_seconds": 0.0,
                 "file_size_bytes": file_size,
                 "is_video_file": False,
@@ -637,7 +637,7 @@ with col_upload:
             except Exception:
                 inspection = None  # fallback if inspection fails
             finally:
-                # Always delete the temp file â€” prevents unbounded disk usage
+                # Always delete the temp file — prevents unbounded disk usage
                 try:
                     _tmp_in.unlink(missing_ok=True)
                 except OSError:
@@ -645,38 +645,38 @@ with col_upload:
 
         if inspection:
             if inspection.get("is_iphone"):
-                st.info("ðŸ“± iPhone video detected (HEVC format). Auto-converting to H.264 for AI processing â€” takes ~10 seconds.")
+                st.info("📱 iPhone video detected (HEVC format). Auto-converting to H.264 for AI processing — takes ~10 seconds.")
             elif inspection.get("is_android"):
-                st.info("ðŸ¤– Android video detected. Auto-converting to a compatible format â€” takes ~10 seconds.")
+                st.info("🤖 Android video detected. Auto-converting to a compatible format — takes ~10 seconds.")
             elif inspection.get("is_vfr"):
-                st.info("ðŸŽ¥ Variable frame rate detected. Normalizing to 30fps for AI compatibility.")
+                st.info("🎥 Variable frame rate detected. Normalizing to 30fps for AI compatibility.")
             elif inspection.get("needs_transcode"):
-                st.info("âš ï¸ Incompatible format detected. Auto-converting to a compatible format â€” takes ~10 seconds.")
+                st.info("⚠️ Incompatible format detected. Auto-converting to a compatible format — takes ~10 seconds.")
             else:
-                st.success("âœ… File format is compatible â€” processing immediately.")
+                st.success("✅ File format is compatible — processing immediately.")
 
 
 with col_opts:
-    st.markdown('<div class="card-header">âš™ï¸ Processing Options</div>', unsafe_allow_html=True)
+    st.markdown('<div class="card-header">⚙️ Processing Options</div>', unsafe_allow_html=True)
 
     instructions_preview = (
         "<em>(none)</em>"
         if not extra_instructions.strip()
-        else extra_instructions[:80] + ("â€¦" if len(extra_instructions) > 80 else "")
+        else extra_instructions[:80] + ("…" if len(extra_instructions) > 80 else "")
     )
     st.markdown(
         f"""
 <div class="card">
     <div style="margin-bottom:0.75rem">
-        <span style="color:#94a3b8;font-size:0.82rem">ðŸ¤– Model</span><br>
+        <span style="color:#94a3b8;font-size:0.82rem">🤖 Model</span><br>
         <span style="font-weight:600;color:#c7d2fe">{MODEL_DISPLAY_NAMES.get(selected_model, selected_model)}</span>
     </div>
     <div style="margin-bottom:0.75rem">
-        <span style="color:#94a3b8;font-size:0.82rem">ðŸŒ Output Language</span><br>
+        <span style="color:#94a3b8;font-size:0.82rem">🌐 Output Language</span><br>
         <span style="font-weight:600;color:#c7d2fe">{target_language}</span>
     </div>
     <div>
-        <span style="color:#94a3b8;font-size:0.82rem">ðŸ“ Custom Instructions</span><br>
+        <span style="color:#94a3b8;font-size:0.82rem">📝 Custom Instructions</span><br>
         <span style="font-weight:600;color:#c7d2fe">{instructions_preview}</span>
     </div>
 </div>
@@ -684,35 +684,35 @@ with col_opts:
         unsafe_allow_html=True,
     )
 
-    with st.expander("â„¹ï¸ How it works", expanded=False):
+    with st.expander("ℹ️ How it works", expanded=False):
         st.markdown(
             """
-**Step 1 â€” Save & Upload**  
+**Step 1 — Save & Upload**  
 Your file is saved locally then streamed to the secure Cloud AI Files API.
 
-**Step 2 â€” Server Processing**  
+**Step 2 — Server Processing**  
 The AI engine indexes every frame and audio track.
 
-**Step 3 â€” AI Generation**  
+**Step 3 — AI Generation**  
 The model synthesises a structured multilingual summary.
 
-**Step 4 â€” Interactive Chat**  
+**Step 4 — Interactive Chat**  
 The cloud file is kept alive temporarily so you can chat with it. It is deleted when you upload a new file.
 """
         )
 
-    with st.expander("ðŸ“‹ Supported formats â€” click to expand", expanded=False):
+    with st.expander("📋 Supported formats — click to expand", expanded=False):
         st.markdown(
             """
-âœ… **Fully Supported** (no conversion needed)  
+✅ **Fully Supported** (no conversion needed)  
 `MP4 (H.264)` &nbsp; `MP3` &nbsp; `WAV` &nbsp; `M4A` &nbsp; `AAC` &nbsp; `OGG` &nbsp; `WEBM (VP8)` &nbsp; `FLAC`
 
-ðŸ”„ **Auto-Converted** (processed automatically)  
+🔄 **Auto-Converted** (processed automatically)  
 `MP4 (HEVC/H.265)` &nbsp; `MOV` &nbsp; `MKV` &nbsp; `AVI` &nbsp; `FLV`  
 `WEBM (VP9/AV1)` &nbsp; `iPhone recordings` &nbsp; `Android recordings` &nbsp; `Variable frame rate`
 
-âŒ **Not Supported** (manual conversion required)  
-Encrypted/DRM files &nbsp;Â·&nbsp; Corrupted files &nbsp;Â·&nbsp; Files over {max_mb} MB
+❌ **Not Supported** (manual conversion required)  
+Encrypted/DRM files &nbsp;·&nbsp; Corrupted files &nbsp;·&nbsp; Files over {max_mb} MB
 """.format(max_mb=getattr(config, 'max_video_size_mb', 2048))
         )
 
@@ -735,14 +735,14 @@ if show_mp3_button:
     col1, col2 = st.columns(2)
     with col1:
         analyse_clicked = st.button(
-            "ðŸš€ Analyse Media",
+            "🚀 Analyse Media",
             disabled=uploaded_file is None or st.session_state.processing,
             key="analyse_btn",
             use_container_width=True,
         )
     with col2:
         mp3_clicked = st.button(
-            "ðŸŽµ Extract Audio & Summarize",
+            "🎵 Extract Audio & Summarize",
             disabled=uploaded_file is None or st.session_state.processing,
             key="extract_mp3_btn",
             use_container_width=True,
@@ -751,7 +751,7 @@ else:
     btn_col, _ = st.columns([2, 3])
     with btn_col:
         analyse_clicked = st.button(
-            "ðŸš€ Analyse Media",
+            "🚀 Analyse Media",
             disabled=uploaded_file is None or st.session_state.processing,
             key="analyse_btn",
             use_container_width=True,
@@ -760,7 +760,7 @@ else:
 
 
 # ---------------------------------------------------------------------------
-# Processing pipeline â€” submit to background queue
+# Processing pipeline — submit to background queue
 # ---------------------------------------------------------------------------
 if (analyse_clicked or mp3_clicked) and uploaded_file is not None:
     from ui.analysis_runner import submit_analysis_job
@@ -786,10 +786,10 @@ if (analyse_clicked or mp3_clicked) and uploaded_file is not None:
     st.session_state.chat_history         = []
     st.session_state.current_remote_file  = None
     st.session_state.progress_frac        = 0.0
-    st.session_state.progress_lbl         = "Startingâ€¦"
+    st.session_state.progress_lbl         = "Starting…"
     st.session_state["_queue_poll_start"] = 0.0
 
-    # Pre-flight file size / type validation
+    # Pre-flight file validation
     uploaded_file.seek(0, 2)
     _file_size = uploaded_file.tell()
     uploaded_file.seek(0)
@@ -800,13 +800,13 @@ if (analyse_clicked or mp3_clicked) and uploaded_file is not None:
         st.session_state.processing = False
         st.rerun()
 
-    # Store upload info for Stage 1 progress card
+    # Store upload info for Stage 1 card
     _fmt = Path(uploaded_file.name).suffix.lstrip(".").upper() or "MEDIA"
     st.session_state.upload_file_name = uploaded_file.name
     st.session_state.upload_file_size = _file_size
     st.session_state.upload_file_fmt  = _fmt
 
-    # Reset pipeline_state for this run
+    # Reset pipeline state for this run
     _ps.reset()
     _ps.update(
         stage=1,
@@ -837,7 +837,7 @@ if (analyse_clicked or mp3_clicked) and uploaded_file is not None:
             classroom_mode=st.session_state.get("classroom_mode_toggle", True),
         )
         st.session_state.queue_job_id = job_id
-        logger.info("Analysis queued - job %s for file '%s'", job_id[:8], uploaded_file.name)
+        logger.info("Analysis queued — job %s for file '%s'", job_id[:8], uploaded_file.name)
 
     except (APIKeyError, VideoProcessingError, SummaryGenerationError,
             TranscodeError, InspectionError) as exc:
@@ -856,16 +856,19 @@ if (analyse_clicked or mp3_clicked) and uploaded_file is not None:
 # ---------------------------------------------------------------------------
 # Queue result polling — runs on every Streamlit rerun
 # ---------------------------------------------------------------------------
-from ui.queue_status import render_queue_status
-
 _active_job_id: str | None = st.session_state.get("queue_job_id")
 if _active_job_id is not None:
     render_queue_status()
 
 
+# ---------------------------------------------------------------------------
+# Error & Result & Chat display
+# ---------------------------------------------------------------------------
+from ui.error_handling import render_error_state
+from ui.chat import render_result_and_chat
+
 render_error_state()
 render_result_and_chat(GeminiVideoClient())
-
 
 
 # ---------------------------------------------------------------------------
@@ -882,7 +885,7 @@ st.markdown(
     color: rgba(255, 255, 255, 0.35);
     letter-spacing: 0.02em;
 ">
-    ðŸ”’ Zero footprint Â· Files deleted after processing Â· No data stored permanently Â· TLS 1.3 encrypted
+    🔒 Zero footprint · Files deleted after processing · No data stored permanently · TLS 1.3 encrypted
 </div>
 
 <script>
