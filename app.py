@@ -1161,7 +1161,6 @@ if _active_job_id is not None:
             st.session_state.error_msg = _job.error
             # Clear stale result so the error panel isn't obscured by old output
             st.session_state.result = None
-        st.rerun()
 
 
 # ---------------------------------------------------------------------------

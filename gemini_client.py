@@ -542,34 +542,40 @@ class GeminiVideoClient:
         Supports both video/* and audio/* MIME types.
         """
         try:
-            mime_type, _ = mimetypes.guess_type(file_name)
-            if not mime_type:
-                ext = Path(file_name).suffix.lower()
-                mime_fallbacks = {
-                    ".mp4": "video/mp4", ".mov": "video/quicktime",
-                    ".avi": "video/x-msvideo", ".webm": "video/webm",
-                    ".mp3": "audio/mpeg", ".wav": "audio/wav",
-                    ".flac": "audio/flac", ".aac": "audio/aac",
-                    ".ogg": "audio/ogg", ".m4a": "audio/mp4",
-                    ".wma": "audio/x-ms-wma", ".opus": "audio/opus",
-                }
-                mime_type = mime_fallbacks.get(ext, "application/octet-stream")
+            fn_lower = file_name.lower()
+            ext = Path(file_name).suffix.lower()
 
-            # If the file is an .mp4 but magic bytes indicate audio-only container,
-            # force audio/mp4 so the Gemini backend doesn't crash expecting a video track.
-            # Uses magic bytes rather than filename string matching to avoid false positives
-            # on filenames like 'audiobook_lecture.mp4'.
-            if mime_type == "video/mp4":
-                try:
-                    header = file_obj.read(32)
-                    file_obj.seek(0)
-                    # ftyp box present but no video-track hint: audio-only MP4/M4A
-                    # M4A magic: ftyp box with 'M4A ' or 'mp42' brand, no moov/trak video
-                    if b"M4A " in header or (b"ftyp" in header and b"mp4" not in header[:12]):
-                        # Heuristic: M4A brand in ftyp → treat as audio
-                        mime_type = "audio/mp4"
-                except Exception:
-                    pass  # can't read header; leave MIME as-is
+            # Check if this is an audio file (single or double/compound extension)
+            is_audio = False
+            for ae in [".mp3", ".wav", ".flac", ".aac", ".ogg", ".m4a", ".opus", ".weba", ".wma", ".mp2", ".mp1"]:
+                if ext == ae or f"{ae}." in fn_lower or f"{ae}_" in fn_lower or file_name.startswith("recorded_audio"):
+                    is_audio = True
+                    break
+
+            if is_audio:
+                if ".wav" in fn_lower:
+                    mime_type = "audio/wav"
+                elif ".flac" in fn_lower:
+                    mime_type = "audio/flac"
+                elif ".ogg" in fn_lower or ".opus" in fn_lower:
+                    mime_type = "audio/ogg"
+                elif ".m4a" in fn_lower or ".aac" in fn_lower:
+                    mime_type = "audio/mp4"
+                else:
+                    mime_type = "audio/mpeg"  # Default for .mp3, .mp3.mpeg, etc.
+            else:
+                mime_type, _ = mimetypes.guess_type(file_name)
+                if not mime_type:
+                    mime_fallbacks = {
+                        ".mp4": "video/mp4", ".mov": "video/quicktime",
+                        ".avi": "video/x-msvideo", ".webm": "video/webm",
+                        ".mp3": "audio/mpeg", ".wav": "audio/wav",
+                        ".flac": "audio/flac", ".aac": "audio/aac",
+                        ".ogg": "audio/ogg", ".m4a": "audio/mp4",
+                        ".wma": "audio/x-ms-wma", ".opus": "audio/opus",
+                        ".mpeg": "video/mpeg", ".mpg": "video/mpeg",
+                    }
+                    mime_type = mime_fallbacks.get(ext, "application/octet-stream")
 
             # Always seek to the beginning before uploading, especially vital for Tenacity retries
             file_obj.seek(0)
