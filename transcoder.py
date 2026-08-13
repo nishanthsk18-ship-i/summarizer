@@ -260,7 +260,8 @@ async def inspect_media(file_path: str) -> dict[str, Any]:
     afps = _parse_fraction(avg_frame_rate)
     is_vfr = False
     if rfps is not None and afps is not None and afps > 0:
-        is_vfr = abs(rfps - afps) > Fraction(1, 10)
+        # Mobile recordings (VFR) often differ by 0.01-0.05 fps — use 1/1000 threshold
+        is_vfr = abs(rfps - afps) > Fraction(1, 1000)
 
     # ── Device & WhatsApp detection ───────────────────────────────────
     make_tag      = tags.get("com.apple.quicktime.make", "").lower()
@@ -300,9 +301,10 @@ async def inspect_media(file_path: str) -> dict[str, Any]:
         or "android" in encoder_tag
         or "apple" in encoder_tag
         or "lavf" in encoder_tag
-        or compat_brands in {"mp42", "isom", "3gp4", "3gp5", "3gp6", "dash"}
-        or major_brand in {"mp42", "isom", "3gp4", "3gp5", "3gp6", "dash", "qt"}
+        or major_brand in {"mp42", "isom", "3gp4", "3gp5", "3gp6", "dash", "qt", "mp41"}
+        or any(b in compat_brands for b in ["mp42", "3gp", "dash", "qt"])
     )
+
 
     # ── Incompatibility collection ─────────────────────────────────────
     reasons: list[str] = []
