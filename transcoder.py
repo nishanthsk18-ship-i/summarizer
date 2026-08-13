@@ -262,10 +262,25 @@ async def inspect_media(file_path: str) -> dict[str, Any]:
     if rfps is not None and afps is not None and afps > 0:
         is_vfr = abs(rfps - afps) > Fraction(1, 10)
 
-    # ── Device detection ───────────────────────────────────────────────
+    # ── Device & WhatsApp detection ───────────────────────────────────
     make_tag      = tags.get("com.apple.quicktime.make", "").lower()
     handler_tag   = tags.get("handler_name", "").lower()
+    encoder_tag   = tags.get("encoder", "").lower()
+    comment_tag   = tags.get("comment", "").lower()
+    title_tag     = tags.get("title", "").lower()
     compat_brands = tags.get("compatible_brands", "").lower()
+    major_brand   = tags.get("major_brand", "").lower()
+    file_name_low = Path(file_path).name.lower()
+
+    is_whatsapp = (
+        "whatsapp" in encoder_tag
+        or "whatsapp" in comment_tag
+        or "whatsapp" in handler_tag
+        or "whatsapp" in title_tag
+        or "whatsapp" in major_brand
+        or "whatsapp" in file_name_low
+        or file_name_low.startswith(("vid-", "aud-", "ptt-", "wa-"))
+    )
 
     is_iphone = (
         "apple" in make_tag
@@ -275,16 +290,31 @@ async def inspect_media(file_path: str) -> dict[str, Any]:
         or (r_frame_rate in {"60000/1001", "30000/1001", "24000/1001"} and video_codec == "hevc")
     )
     is_android = (
-        "android" in tags.get("encoder", "").lower()
+        "android" in encoder_tag
         or container in {"3gp", "3g2"}
+    )
+    is_mobile = (
+        is_iphone
+        or is_android
+        or is_whatsapp
+        or "android" in encoder_tag
+        or "apple" in encoder_tag
+        or "lavf" in encoder_tag
+        or compat_brands in {"mp42", "isom", "3gp4", "3gp5", "3gp6", "dash"}
+        or major_brand in {"mp42", "isom", "3gp4", "3gp5", "3gp6", "dash", "qt"}
     )
 
     # ── Incompatibility collection ─────────────────────────────────────
     reasons: list[str] = []
     is_video_file = bool(video_streams)
 
-    # Video codec
+    # WhatsApp / Mobile phone recording detection
     video_bad = False
+    if is_whatsapp:
+        reasons.append("WhatsApp compressed mobile video/audio export detected — converting format for Cloud AI compatibility")
+        video_bad = True
+
+    # Video codec
     if video_codec in _INCOMPATIBLE_VIDEO_CODECS:
         reasons.append(f"Video codec '{video_codec}' is not supported by the Cloud AI engine")
         video_bad = True
@@ -316,11 +346,10 @@ async def inspect_media(file_path: str) -> dict[str, Any]:
         )
         video_bad = True
 
-
     # Audio codec
     audio_bad = False
-    if audio_codec in _INCOMPATIBLE_AUDIO_CODECS:
-        reasons.append(f"Audio codec '{audio_codec}' is not supported in this container")
+    if audio_codec in _INCOMPATIBLE_AUDIO_CODECS or (audio_codec == "opus" and container in {"mp4", "mov", "qt", "m4a", "3gp"}):
+        reasons.append(f"Audio codec '{audio_codec}' inside container '{container}' requires transcoding to AAC")
         audio_bad = True
 
     # Container
@@ -331,8 +360,9 @@ async def inspect_media(file_path: str) -> dict[str, Any]:
             container_bad = True
             break
 
-    needs_transcode = bool(video_bad or container_bad or is_vfr)
+    needs_transcode = bool(video_bad or container_bad or is_vfr or is_whatsapp)
     needs_audio_only = audio_bad and not video_bad and not container_bad and not is_vfr
+
 
     return {
         "needs_transcode":        needs_transcode or needs_audio_only,
@@ -340,6 +370,8 @@ async def inspect_media(file_path: str) -> dict[str, Any]:
         "is_vfr":                 is_vfr,
         "is_iphone":              is_iphone,
         "is_android":             is_android,
+        "is_whatsapp":            is_whatsapp,
+        "is_mobile":             is_mobile,
         "video_codec":            video_codec,
         "audio_codec":            audio_codec,
         "container":              container,
@@ -357,6 +389,7 @@ async def inspect_media(file_path: str) -> dict[str, Any]:
     }
 
 
+
 # ---------------------------------------------------------------------------
 # FIX 2 — Nuclear FFmpeg commands
 # ---------------------------------------------------------------------------
@@ -367,6 +400,8 @@ def _build_nuclear_video_cmd(
     out_path: Path,
     is_iphone: bool = False,
     is_android: bool = False,
+    is_whatsapp: bool = False,
+    is_mobile: bool = False,
 ) -> list[str]:
     """
     Build the full nuclear video + audio transcode command.
@@ -375,10 +410,10 @@ def _build_nuclear_video_cmd(
     -pix_fmt yuv420p                 → Forces 8-bit color; rejects 10-bit HDR
     -vf fps=30,scale=...             → Converts VFR→CFR; ensures even dimensions
     -movflags +faststart             → Moves MP4 moov atom to front for upload
-    -avoid_negative_ts make_zero     → Fixes negative timestamps in iPhone files
+    -avoid_negative_ts make_zero     → Fixes negative timestamps in iPhone/WhatsApp files
     -map_metadata -1                 → Strips metadata (privacy + compat)
-    -tag:v avc1                      → Fixes iPhone HEVC container tag issue
-    -bsf:a aac_adtstoasc             → Fixes iPhone AAC ADTS→ASC conversion
+    -tag:v avc1                      → Fixes HEVC/mobile container tag issue
+    -bsf:a aac_adtstoasc             → Fixes AAC ADTS→ASC conversion
     """
     cmd = [
         "ffmpeg", "-y",
@@ -400,22 +435,16 @@ def _build_nuclear_video_cmd(
         "-ac", "2",
         # Container flags
         "-movflags", "+faststart",       # Move moov atom to front for streaming
-        "-avoid_negative_ts", "make_zero",  # Fix iPhone negative timestamps
+        "-avoid_negative_ts", "make_zero",  # Fix negative timestamps
         "-map_metadata", "-1",           # Strip all metadata
     ]
 
-    if is_iphone:
-        # iPhone-specific fixes
+    if is_iphone or is_android or is_whatsapp or is_mobile:
+        # Mobile phone / WhatsApp recording fixes
         cmd += [
             "-tag:v", "avc1",           # Fix HEVC container tag → H.264 tag
             "-bsf:a", "aac_adtstoasc",  # Convert AAC ADTS to ASC bitstream format
             "-vsync", "cfr",            # Forces constant frame rate (kills VFR)
-        ]
-
-    if is_android:
-        # Android-specific fixes
-        cmd += [
-            "-vsync", "cfr",            # Kills VFR
             "-r", "30",                 # Forces exactly 30fps CFR output
         ]
 
@@ -451,39 +480,39 @@ def _build_audio_extract_cmd(
     out_path: Path,
 ) -> list[str]:
     """
-    Build Tier 2 audio extraction command.
-    Used as fallback when full video transcode fails.
-    Output is .m4a (AAC).
+    Build Tier 2 fallback command — extract audio track as AAC m4a.
+    Used if full video transcode fails.
     """
     return [
         "ffmpeg", "-y",
         "-i", str(in_path),
-        "-vn",                          # Drop video stream entirely
+        "-vn",                           # Drop video stream completely
         "-c:a", "aac",
         "-b:a", "128k",
         "-ar", "44100",
         "-ac", "2",
+        "-map_metadata", "-1",
         str(out_path),
     ]
 
 
 # ---------------------------------------------------------------------------
-# FIX 3 — Three-tier fallback pipeline
+# FIX 3 — Three-tier fallback engine
 # ---------------------------------------------------------------------------
 
 
 async def transcode_with_fallback(
     input_path: str,
     inspection: dict[str, Any],
-    log_callback: Any = None,
+    log_callback: Callable[[str], None] | None = None,
     file_size_bytes: int = 0,
     job_id: str | None = None,
 ) -> tuple[str, str]:
     """
-    Three-tier transcoding pipeline for guaranteed Gemini compatibility.
+    Execute three-tier fallback transcode pipeline.
 
-    Tier 1 — Nuclear H.264 transcode (video + audio):
-        Timeout: 300s for <500MB files, 600s for larger.
+    Tier 1 — Full nuclear transcode (libx264 + aac mp4):
+        Applied when inspect_media() flags video/container/VFR/WhatsApp incompatibility.
         If successful: return (output_path, "full_video")
 
     Tier 2 — Audio extraction (AAC m4a):
@@ -523,9 +552,13 @@ async def transcode_with_fallback(
 
     is_iphone = inspection.get("is_iphone", False)
     is_android = inspection.get("is_android", False)
+    is_whatsapp = inspection.get("is_whatsapp", False)
+    is_mobile = inspection.get("is_mobile", False)
     audio_only_mode = inspection.get("needs_audio_only", False)
 
-    if is_iphone:
+    if is_whatsapp:
+        _log("💬 WhatsApp media export detected — applying mobile conversion flags…")
+    elif is_iphone:
         _log("📱 iPhone video detected — applying device-specific conversion flags…")
     elif is_android:
         _log("📱 Android video detected — applying device-specific conversion flags…")
@@ -538,7 +571,13 @@ async def transcode_with_fallback(
         _log("🔄 Audio codec incompatible — re-encoding audio stream only…")
     else:
         tier1_out = _TMP_DIR / f"{uid}_{stem}_transcoded.mp4"
-        tier1_cmd = _build_nuclear_video_cmd(in_path, tier1_out, is_iphone=is_iphone, is_android=is_android)
+        tier1_cmd = _build_nuclear_video_cmd(
+            in_path, tier1_out,
+            is_iphone=is_iphone,
+            is_android=is_android,
+            is_whatsapp=is_whatsapp,
+            is_mobile=is_mobile,
+        )
         reasons = inspection.get("reasons", [])
         _log(f"🔄 Transcoding to H.264 — reasons: {'; '.join(reasons) or 'container compatibility'}")
 

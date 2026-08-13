@@ -93,8 +93,9 @@ def build_analysis_fn(
                     "file_size_bytes": len(file_bytes),
                 }
 
-            is_iphone  = inspection.get("is_iphone", False)
-            is_android = inspection.get("is_android", False)
+            is_iphone   = inspection.get("is_iphone", False)
+            is_android  = inspection.get("is_android", False)
+            is_whatsapp = inspection.get("is_whatsapp", False)
 
             if inspection.get("needs_transcode"):
                 _ps.update(
@@ -102,10 +103,12 @@ def build_analysis_fn(
                     stage_label="Preparing…",
                     skipped_transcode=False,
                     sub_message=(
-                        "iPhone recording" if is_iphone
-                        else ("Android recording" if is_android else "Converting format")
+                        "WhatsApp media export" if is_whatsapp
+                        else ("iPhone recording" if is_iphone
+                              else ("Android recording" if is_android else "Converting format"))
                     ),
                 )
+
             else:
                 _ps.update(skipped_transcode=True)
 
