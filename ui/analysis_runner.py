@@ -153,15 +153,67 @@ def build_analysis_fn(
                 pass
 
             # ── Stage 3 & 4: Upload → Index → Generate ──────────────────────
-            stream_result = gemini.summarise_stream(
-                file_obj=media_bytes,
-                file_name=effective_file_name,
-                target_language=target_language,
-                source_language=source_language,
-                extra_instructions=combined_instructions,
-                log_callback=None,      # callbacks are not thread-safe; omitted in queued mode
-                progress_callback=None,
-            )
+            from gemini_client import VideoProcessingError
+
+            try:
+                stream_result = gemini.summarise_stream(
+                    file_obj=media_bytes,
+                    file_name=effective_file_name,
+                    target_language=target_language,
+                    source_language=source_language,
+                    extra_instructions=combined_instructions,
+                    log_callback=None,      # callbacks are not thread-safe; omitted in queued mode
+                    progress_callback=None,
+                )
+            except VideoProcessingError as vpe:
+                logger.warning(
+                    "Cloud AI rejected media file '%s' with VideoProcessingError (%s). Attempting reactive auto-repair transcode...",
+                    effective_file_name, vpe
+                )
+                if transcoded_path is None and is_ffmpeg_available():
+                    _ps.update(
+                        stage=2,
+                        stage_label="Converting format…",
+                        skipped_transcode=False,
+                        sub_message="Auto-repairing format for Cloud AI",
+                    )
+                    inspection["needs_transcode"] = True
+                    if not _tmp_in.exists():
+                        _tmp_in.write_bytes(file_bytes)
+                    transcoded_path, _ = asyncio.run(
+                        transcode_with_fallback(str(_tmp_in), inspection, file_size_bytes=len(file_bytes))
+                    )
+                    effective_file_name = Path(transcoded_path).name
+                    media_bytes = io.BytesIO(Path(transcoded_path).read_bytes())
+                    stream_result = gemini.summarise_stream(
+                        file_obj=media_bytes,
+                        file_name=effective_file_name,
+                        target_language=target_language,
+                        source_language=source_language,
+                        extra_instructions=combined_instructions,
+                        log_callback=None,
+                        progress_callback=None,
+                    )
+                elif mp3_path is None and is_ffmpeg_available():
+                    from transcoder import mp4_to_mp3
+                    _ps.update(stage=1.5, stage_label="Extracting Audio Fallback…")
+                    if not _tmp_in.exists():
+                        _tmp_in.write_bytes(file_bytes)
+                    mp3_path = asyncio.run(mp4_to_mp3(str(_tmp_in)))
+                    effective_file_name = Path(mp3_path).name
+                    media_bytes = io.BytesIO(Path(mp3_path).read_bytes())
+                    stream_result = gemini.summarise_stream(
+                        file_obj=media_bytes,
+                        file_name=effective_file_name,
+                        target_language=target_language,
+                        source_language=source_language,
+                        extra_instructions=combined_instructions,
+                        log_callback=None,
+                        progress_callback=None,
+                    )
+                else:
+                    raise
+
 
             try:
                 full_text = "".join(stream_result.stream)

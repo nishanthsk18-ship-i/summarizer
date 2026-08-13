@@ -61,12 +61,16 @@ _INCOMPATIBLE_VIDEO_CODECS: set[str] = {
     "dnxhd", "dnxhr",                 # Avid DNxHD/HR
     "mpeg4", "msmpeg4v3",             # Legacy MPEG-4 Part 2 / DivX / Xvid
     "xvid", "divx",
+    "h263", "h263p", "flv1",         # Legacy mobile / Flash video
+    "mpeg1video", "mpeg2video",      # MPEG-1 / MPEG-2
+    "vp6", "vp6f", "svq3",           # Flash / Sorenson
     "wmv3", "wmv2", "wmv1",          # Windows Media Video
     "vc1",                            # VC-1 (Blu-ray / WMV HD)
     "theora",                         # OGG Theora
     "rv40", "rv30", "rv20",          # RealVideo
     "cinepak", "rpza", "smc",        # Ancient QuickTime codecs
 }
+
 
 _INCOMPATIBLE_AUDIO_CODECS: set[str] = {
     "opus",                           # Opus in MP4 container
@@ -297,13 +301,21 @@ async def inspect_media(file_path: str) -> dict[str, Any]:
         reasons.append(f"Color profile '{profile}' (10-bit) not supported — requires 8-bit")
         video_bad = True
 
-    # VFR
+    # VFR & High FPS detection
     if is_vfr:
         reasons.append(
             f"Variable frame rate detected (r_fps={r_frame_rate} vs avg_fps={avg_frame_rate}) "
             "— Cloud AI requires constant frame rate"
         )
         video_bad = True
+
+    if (rfps is not None and rfps > 30) or (afps is not None and afps > 30):
+        reasons.append(
+            f"High frame rate detected (r_fps={r_frame_rate}, avg_fps={avg_frame_rate}) "
+            "— Cloud AI requires standard 30fps max"
+        )
+        video_bad = True
+
 
     # Audio codec
     audio_bad = False
