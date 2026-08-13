@@ -507,13 +507,11 @@ with col_upload:
     with tab_upload:
         raw_uploaded_file = st.file_uploader(
             "Drop your video or audio file here",
-            type=[
-                "mp4", "mov", "avi", "mpeg", "mpg", "webm", "wmv", "3gp", "flv",
-                "mp3", "wav", "flac", "aac", "ogg", "m4a", "wma", "opus",
-            ],
+            type=None,
             label_visibility="collapsed",
             key="video_uploader",
         )
+
         
     with tab_record:
         audio_bytes = render_audio_recorder(
