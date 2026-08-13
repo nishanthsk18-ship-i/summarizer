@@ -135,8 +135,9 @@ def validate_media_file(
             try:
                 import magic
                 mime = magic.from_buffer(header, mime=True)
-            except Exception:
-                pass
+            except Exception as magic_exc:
+                logger.debug("python-magic check skipped: %s", magic_exc)
+
 
             if mime and not (
                 mime.startswith("video/")

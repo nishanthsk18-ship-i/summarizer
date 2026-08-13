@@ -170,8 +170,9 @@ def build_analysis_fn(
                 if stream_result and stream_result.remote_file_name:
                     try:
                         gemini.delete_remote_file(stream_result.remote_file_name)
-                    except Exception:
-                        pass
+                    except Exception as del_exc:
+                        logger.warning("Failed to delete remote file %s on stream error: %s", stream_result.remote_file_name, del_exc)
+
                 raise stream_exc
 
             return SummaryResult(

@@ -123,8 +123,9 @@ def _run_startup_health_checks() -> None:
             for _k, _v in st.secrets.items():
                 if isinstance(_v, (str, int, float, bool)) and not os.environ.get(_k):
                     os.environ[_k] = str(_v)
-    except Exception:
-        pass
+    except Exception as secrets_exc:
+        logger.debug("st.secrets processing skipped: %s", secrets_exc)
+
 
     # 1. Initialize SQLite DB
     init_db()

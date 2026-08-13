@@ -399,12 +399,15 @@ class GeminiVideoClient:
             if remote_file and remote_file.name:
                 try:
                     self.delete_remote_file(remote_file.name)
-                except Exception:
-                    pass
+                except Exception as del_exc:
+                    logger.warning("Failed to delete remote file %s during error cleanup: %s", remote_file.name, del_exc)
             raise
         except Exception:
             if remote_file and remote_file.name:
-                self.delete_remote_file(remote_file.name)
+                try:
+                    self.delete_remote_file(remote_file.name)
+                except Exception as del_exc:
+                    logger.warning("Failed to delete remote file %s during cleanup: %s", remote_file.name, del_exc)
             raise
 
     # ------------------------------------------------------------------
@@ -446,8 +449,9 @@ class GeminiVideoClient:
                 import os
                 try:
                     file_size_mb = os.fstat(file_obj.fileno()).st_size / (1024 * 1024)
-                except Exception:
-                    pass
+                except Exception as stat_exc:
+                    logger.debug("Could not determine file size via fstat: %s", stat_exc)
+
         # Assume configurable upload speed — default 8 MB/s
         estimated_seconds = max(3.0, file_size_mb / config.upload_speed_mbps)
         _bytes_total_approx = int(file_size_mb * 1024 * 1024)
