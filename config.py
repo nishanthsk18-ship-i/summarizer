@@ -53,19 +53,20 @@ SUPPORTED_LANGUAGES: list[str] = [
 # Accepted media types (video + audio)
 # ---------------------------------------------------------------------------
 ACCEPTED_VIDEO_EXTENSIONS: list[str] = [
-    ".mp4", ".mpeg", ".mov", ".avi", ".flv",
-    ".mpg", ".webm", ".wmv", ".3gp",
+    ".mp4", ".mov", ".avi", ".mkv", ".webm", ".wmv", ".3gp", ".flv",
+    ".m4v", ".mpeg", ".mpg", ".mpeg4", ".ts", ".m2ts", ".mts", ".vob", ".ogv",
 ]
 
 ACCEPTED_AUDIO_EXTENSIONS: list[str] = [
-    ".mp3", ".wav", ".flac", ".aac", ".ogg",
-    ".wma", ".m4a", ".opus", ".weba", ".mpeg", ".mpg", ".mp2", ".mp1",
+    ".mp3", ".wav", ".flac", ".aac", ".ogg", ".m4a", ".opus", ".weba",
+    ".wma", ".aiff", ".aif", ".caf", ".amr", ".awb", ".mpeg", ".mpg", ".mp2", ".mp1",
 ]
 
 # Combined list for validation
 ACCEPTED_MEDIA_EXTENSIONS: list[str] = (
     ACCEPTED_VIDEO_EXTENSIONS + ACCEPTED_AUDIO_EXTENSIONS
 )
+
 
 
 # ---------------------------------------------------------------------------

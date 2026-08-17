@@ -50,7 +50,13 @@ from ui.recorder import render_audio_recorder
 import ui.pipeline_state as _ps
 from ui.loading import show_loading_ui
 
-from config import ACCEPTED_AUDIO_EXTENSIONS, SUPPORTED_LANGUAGES, config
+from config import (
+    ACCEPTED_AUDIO_EXTENSIONS,
+    ACCEPTED_MEDIA_EXTENSIONS,
+    SUPPORTED_LANGUAGES,
+    config,
+)
+
 from file_handler import (
     FileTooLargeError,
     InvalidFileTypeError,
@@ -507,10 +513,11 @@ with col_upload:
     with tab_upload:
         raw_uploaded_file = st.file_uploader(
             "Drop your video or audio file here",
-            type=None,
+            type=[ext.lstrip(".") for ext in ACCEPTED_MEDIA_EXTENSIONS],
             label_visibility="collapsed",
             key="video_uploader",
         )
+
 
         
     with tab_record:
