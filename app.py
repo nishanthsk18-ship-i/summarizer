@@ -736,12 +736,16 @@ st.markdown("")
 show_mp3_button = False
 if uploaded_file is not None:
     from pathlib import Path as _P
-    _ext = _P(uploaded_file.name).suffix.lower()
-    if _ext in {".mp4", ".mov", ".mkv", ".avi", ".webm", ".3gp", ".flv"}:
+    _name = uploaded_file.name.lower()
+    _ext = _P(_name).suffix
+    if _name.startswith("recorded_audio") or is_audio_file(_name):
+        show_mp3_button = False
+    elif _ext in {".mp4", ".mov", ".mkv", ".avi", ".3gp", ".flv"}:
         show_mp3_button = True
     elif 'inspection' in locals() and isinstance(inspection, dict):
         if inspection.get("video_codec") or inspection.get("is_video_file"):
             show_mp3_button = True
+
 
 if show_mp3_button:
     col1, col2 = st.columns(2)

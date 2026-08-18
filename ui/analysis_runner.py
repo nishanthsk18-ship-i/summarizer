@@ -116,18 +116,23 @@ def build_analysis_fn(
             if conversion_mode == "mp3":
                 from transcoder import mp4_to_mp3
                 _ps.update(stage=1.5, stage_label="Extracting Audio…")
-                try:
-                    mp3_path = asyncio.run(mp4_to_mp3(str(_tmp_in)))
-                    if mp3_path == str(_tmp_in):
-                        raise RuntimeError("SAFETY BLOCK: mp3_path must differ from source")
-                    effective_file_name = Path(mp3_path).name
-                    media_bytes = io.BytesIO(Path(mp3_path).read_bytes())
-                    inspection["needs_transcode"] = False
-                except TranscodeError as exc:
-                    raise TranscodeError(
-                        input_path=str(_tmp_in),
-                        reasons=["Audio extraction failed. Try '🚀 Analyse Media' to process the full video instead."],
-                    ) from exc
+                # If input file is already an audio recording or audio track, bypass video extraction
+                if not inspection.get("is_video_file") and not inspection.get("video_codec"):
+                    logger.info("Input '%s' is already an audio file — skipping video extraction", effective_file_name)
+                else:
+                    try:
+                        mp3_path = asyncio.run(mp4_to_mp3(str(_tmp_in)))
+                        if mp3_path == str(_tmp_in):
+                            raise RuntimeError("SAFETY BLOCK: mp3_path must differ from source")
+                        effective_file_name = Path(mp3_path).name
+                        media_bytes = io.BytesIO(Path(mp3_path).read_bytes())
+                        inspection["needs_transcode"] = False
+                    except TranscodeError as exc:
+                        raise TranscodeError(
+                            input_path=str(_tmp_in),
+                            reasons=["Audio extraction failed. Try '🚀 Analyse Media' to process the full video instead."],
+                        ) from exc
+
 
             # ── Stage 2: Transcode if needed ────────────────────────────────
             if inspection["needs_transcode"] and is_ffmpeg_available():
