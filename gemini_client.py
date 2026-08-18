@@ -100,9 +100,23 @@ def _is_fallback_candidate_error(exc: BaseException) -> bool:
 
 logger = logging.getLogger(__name__)
 
-# ---------------------------------------------------------------------------
-# Progress stage weights  (rebalanced — upload is fast, generation is slow)
-# ---------------------------------------------------------------------------
+# ── Global atexit cleanup hook for active remote Google Cloud AI files ────────
+import atexit as _atexit
+_ACTIVE_REMOTE_FILES: set[str] = set()
+_ACTIVE_CLIENTS: list[Any] = []
+
+def _cleanup_all_active_remote_files() -> None:
+    for _cl in list(_ACTIVE_CLIENTS):
+        for _fn in list(_ACTIVE_REMOTE_FILES):
+            try:
+                _cl.files.delete(name=_fn)
+            except Exception:
+                pass
+    _ACTIVE_REMOTE_FILES.clear()
+
+_atexit.register(_cleanup_all_active_remote_files)
+# ─────────────────────────────────────────────────────────────────────────────
+
 _UPLOAD_END   = 0.25   # upload   occupies   0% →  25%
 _PROCESS_END  = 0.55   # polling  occupies  25% →  55%
 _GENERATE_END = 0.97   # generation         55% →  97%
@@ -232,7 +246,9 @@ class GeminiVideoClient:
             raise APIKeyError("API key cannot be empty. Please configure your API key in .env.")
 
         self._client = genai.Client(api_key=key)
+        _ACTIVE_CLIENTS.append(self._client)
         self._model  = config.gemini_model
+
         logger.info("GeminiVideoClient initialised with model: %s", self._model)
 
     # ------------------------------------------------------------------
@@ -592,13 +608,17 @@ class GeminiVideoClient:
             # Always seek to the beginning before uploading, especially vital for Tenacity retries
             file_obj.seek(0)
             
-            return self._client.files.upload(
+            uploaded_file = self._client.files.upload(
                 file=file_obj,
                 config=genai_types.UploadFileConfig(
                     display_name=file_name,
                     mime_type=mime_type,
                 ),
             )
+            if uploaded_file and getattr(uploaded_file, "name", None):
+                _ACTIVE_REMOTE_FILES.add(uploaded_file.name)
+            return uploaded_file
+
         except Exception as exc:
             # 429 quota exceeded
             if _is_quota_error(exc):
@@ -935,13 +955,16 @@ class GeminiVideoClient:
         """
         try:
             self._client.files.delete(name=file_name)
+            _ACTIVE_REMOTE_FILES.discard(file_name)
             log_callback("🗑️  Remote file deleted from Cloud AI storage.")
         except Exception as exc:
+            _ACTIVE_REMOTE_FILES.discard(file_name)
             logger.warning("Could not delete remote file '%s': %s", file_name, exc)
             log_callback(
                 "⚠️  Remote file deletion skipped "
                 "(it expires automatically within 48 h)."
             )
+
 
 
 

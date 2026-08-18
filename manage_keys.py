@@ -9,10 +9,13 @@ def main() -> None:
     args = parser.parse_args()
     
     if args.generate:
+        from database import DB_PATH
         new_key = generate_key(max_quota=args.quota)
         print("\n[SUCCESS] Generated a new custom API Key!")
-        print(f"Key:   {new_key}")
-        print(f"Quota: {args.quota} uses\n")
+        print(f"Key:      {new_key}")
+        print(f"Quota:    {args.quota} uses")
+        print(f"Database: {DB_PATH.resolve()}\n")
+
     else:
         parser.print_help()
 

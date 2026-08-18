@@ -288,6 +288,19 @@ class TestExportPdf:
         result = export_pdf(text, "test")
         assert result[:4] == b"%PDF"
 
+    def test_xml_characters_do_not_crash_pdf(self) -> None:
+        """Raw XML/HTML entities like <, >, & must be escaped safely."""
+        text = "Price < $100 & High > Low. Also <div>test</div> and AT&T & R&D."
+        result = export_pdf(text, "test")
+        assert result[:4] == b"%PDF"
+
+    def test_multilingual_characters_pdf(self) -> None:
+        """Multilingual UTF-8 characters must generate valid PDF without crashing."""
+        text = "Summary: Bonjour le monde, Hola Mundo, Hallo Welt, नमस्ते, வணக்கம்"
+        result = export_pdf(text, "test")
+        assert result[:4] == b"%PDF"
+
+
 
 # ══════════════════════════════════════════════════════════════════════════════
 # TEST GROUP 4 — FILENAME SANITIZATION

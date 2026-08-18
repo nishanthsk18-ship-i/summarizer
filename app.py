@@ -38,6 +38,21 @@ for _sp in _secret_files:
             _logging.getLogger(__name__).warning("Error reading secrets TOML file %s: %s", _sp, _se)
 # ─────────────────────────────────────────────────────────────────────────────
 
+# Startup cleanup scavenger: purge orphaned temp files older than 24 hours
+try:
+    import time as _time
+    for _tdir in (_Path("./tmp_uploads"), _Path("./.tmp")):
+        if _tdir.exists():
+            for _f in _tdir.glob("*"):
+                if _f.is_file() and (_time.time() - _f.stat().st_mtime > 86400):
+                    try:
+                        _f.unlink()
+                    except Exception:
+                        pass
+except Exception:
+    pass
+
+
 import html
 import io
 import typing
@@ -528,12 +543,10 @@ with col_upload:
             noise_gate_default=0.008,
         )
         
-    # Determine which file to process
+    # Determine which file to process:
+    # If fresh audio was just recorded, prioritize it over stale uploader state.
     uploaded_file: typing.Any = None
-    if raw_uploaded_file is not None:
-        uploaded_file = raw_uploaded_file
-        st.session_state["recorded_audio_bytes"] = None
-    elif audio_bytes is not None:
+    if audio_bytes is not None:
         st.session_state["recorded_audio_bytes"] = audio_bytes
         ext = ".webm"
         if audio_bytes.startswith(b"\x1a\x45\xdf\xa3"):
@@ -542,6 +555,11 @@ with col_upload:
             ext = ".m4a"
         uploaded_file = io.BytesIO(audio_bytes)
         uploaded_file.name = f"recorded_audio{ext}"
+    elif raw_uploaded_file is not None and st.session_state.get("recorded_audio_bytes") is None:
+        uploaded_file = raw_uploaded_file
+    elif raw_uploaded_file is not None:
+        uploaded_file = raw_uploaded_file
+        st.session_state["recorded_audio_bytes"] = None
     elif st.session_state.get("recorded_audio_bytes") is not None:
         cached_bytes: bytes = st.session_state["recorded_audio_bytes"]
         ext = ".webm"
@@ -551,6 +569,7 @@ with col_upload:
             ext = ".m4a"
         uploaded_file = io.BytesIO(cached_bytes)
         uploaded_file.name = f"recorded_audio{ext}"
+
 
     if uploaded_file is not None:
         # BUG FIX: read size without consuming the stream, then seek back.

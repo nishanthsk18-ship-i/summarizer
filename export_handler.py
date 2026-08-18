@@ -46,17 +46,23 @@ for _fpath in [
             pass
 
 
+import html
+
+
 def clean_markdown_formatting(text: str) -> str:
-    """Removes or converts raw markdown tags for PDF paragraph rendering."""
+    """Removes or converts raw markdown tags for PDF paragraph rendering, escaping raw XML entities."""
     if not text:
         return ""
+    # Escape raw XML/HTML entities to prevent ReportLab Expat parser crashes
+    t = html.escape(text, quote=False)
     # Convert bold **text** -> <b>text</b>
-    t = re.sub(r'\*\*(.*?)\*\*', r'<b>\1</b>', text)
+    t = re.sub(r'\*\*(.*?)\*\*', r'<b>\1</b>', t)
     # Convert italic *text* -> <i>text</i>
     t = re.sub(r'\*(.*?)\*', r'<i>\1</i>', t)
     # Convert code `text` -> <font name="Courier">\1</font>
     t = re.sub(r'`(.*?)`', r'<font name="Courier" color="#63B3ED">\1</font>', t)
     return t
+
 
 
 def generate_pdf_bytes(title: str, summary_text: str, metadata: Dict[str, Any] | None = None) -> bytes:

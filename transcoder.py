@@ -193,10 +193,16 @@ async def inspect_media(file_path: str) -> dict[str, Any]:
         )
         stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=30.0)
     except asyncio.TimeoutError as exc:
+        try:
+            proc.kill()
+            await proc.wait()
+        except Exception:
+            pass
         raise InspectionError(
             input_path=file_path,
             stderr=f"ffprobe timed out after 30s inspecting '{file_path}'",
         ) from exc
+
     except Exception as exc:
         raise InspectionError(
             input_path=file_path,
@@ -802,9 +808,15 @@ async def mp4_to_mp3(
         return str(out_p.resolve())
 
     except asyncio.TimeoutError as exc:
+        try:
+            proc.kill()
+            await proc.wait()
+        except Exception:
+            pass
         logger.error("mp4_to_mp3 timed out after 120s")
         raise TranscodeError(
             input_path=str(in_p),
             reasons=["MP4→MP3 extraction timed out after 120 seconds"],
         ) from exc
+
 
