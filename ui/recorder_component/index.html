@@ -2033,10 +2033,14 @@ function applyClassroomTheme(on) {
   document.getElementById('pillGain').textContent = 'GAIN';
 }
 
+let lastSentHeight = 0;
 function syncHeight() {
-  setTimeout(() => SL.setHeight(document.body.scrollHeight + 8), 60);
+  const h = Math.ceil(document.body.scrollHeight) + 8;
+  if (Math.abs(h - lastSentHeight) > 4) {
+    lastSentHeight = h;
+    SL.setHeight(h);
+  }
 }
-new ResizeObserver(() => syncHeight()).observe(document.body);
 
 function onRender(args) {
   isClassroom  = args.classroom_mode       || false;
@@ -2049,6 +2053,7 @@ function onRender(args) {
     document.getElementById('ngVal').textContent = ngDef.toFixed(3);
   }
   applyClassroomTheme(isClassroom);
+  syncHeight();
 }
 
 initBars();
@@ -2061,3 +2066,4 @@ window.addEventListener('resize', () => { resizeCanvases(); syncHeight(); });
 </script>
 </body>
 </html>
+

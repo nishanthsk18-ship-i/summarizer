@@ -17,8 +17,23 @@ def render_result_and_chat(chat_client: GeminiVideoClient | None = None) -> None
         result = st.session_state.result
         st.markdown("---")
 
+        # Header + New Analysis button
+        h_col, btn_col = st.columns([3, 1])
+        with h_col:
+            st.markdown("### 📄 Summary Result")
+        with btn_col:
+            if st.button("🔄 Summarize Another File", key="btn_new_analysis", use_container_width=True):
+                st.session_state.result = None
+                st.session_state.error_msg = None
+                st.session_state.processing = False
+                st.session_state.chat_history = []
+                st.session_state.queue_job_id = None
+                st.session_state.recorded_audio_bytes = None
+                st.rerun()
+
         # Badges row
         res_col1, res_col2, res_col3, res_col4 = st.columns(4)
+
         with res_col1:
             st.markdown('<div style="padding:6px 12px; background:rgba(104,211,145,0.12); border:1px solid rgba(104,211,145,0.3); border-radius:100px; color:#68D391; font-size:12px; font-weight:600; text-align:center;">✅ Summary Ready</div>', unsafe_allow_html=True)
         with res_col2:

@@ -64,6 +64,7 @@ def _queue_status_body() -> None:
     if not job:
         logger.warning("Job %s not found in registry — clearing queue_job_id", job_id[:8])
         st.session_state.queue_job_id = None
+        st.session_state.processing = False
         st.session_state.error_msg = (
             "Processing job lost (server may have restarted). Please try again."
         )
@@ -77,6 +78,7 @@ def _queue_status_body() -> None:
     elif time.monotonic() - poll_start > _POLL_TIMEOUT_SECONDS:
         logger.error("Job %s timed out after %ds — aborting poll", job_id[:8], _POLL_TIMEOUT_SECONDS)
         st.session_state.queue_job_id = None
+        st.session_state.processing = False
         st.session_state["_queue_poll_start"] = 0.0
         st.session_state.error_msg = (
             f"Processing timed out after {_POLL_TIMEOUT_SECONDS // 60} minutes. "
@@ -96,6 +98,7 @@ def _queue_status_body() -> None:
 
     # ── DONE or FAILED ──────────────────────────────────────────────────────
     st.session_state.queue_job_id = None
+    st.session_state.processing = False
     st.session_state["_queue_poll_start"] = 0.0   # reset timeout counter
 
     if job.status == JobStatus.DONE and job.result is not None:
@@ -110,6 +113,7 @@ def _queue_status_body() -> None:
         logger.error("Job %s failed: %s", job_id[:8], error_detail)
 
     _full_rerun()
+
 
 
 # ---------------------------------------------------------------------------
