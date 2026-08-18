@@ -17,7 +17,14 @@ def render_error_state() -> None:
         return
 
     st.markdown("---")
-    st.error(f"**Error:** {error_msg}", icon="🚨")
+    err_col1, err_col2 = st.columns([5, 1])
+    with err_col1:
+        st.error(f"**Error:** {error_msg}", icon="🚨")
+    with err_col2:
+        if st.button("✕ Dismiss", key="dismiss_err_btn", use_container_width=True):
+            st.session_state.error_msg = None
+            st.rerun()
+
 
     # ── Determine which help tip to show based on error content ─────────
     is_transcode_failure = (

@@ -615,10 +615,7 @@ with col_upload:
         elif is_audio_file(uploaded_file.name):
             # Audio files do not require HEVC/VFR video inspection — skip main thread ffprobe
             ext = Path(uploaded_file.name).suffix.lower()
-            needs_conv = (
-                ext in {".mpeg", ".mpg", ".wma", ".aiff", ".mp2", ".mp1"}
-                or any(f"{ae}." in uploaded_file.name.lower() for ae in ACCEPTED_AUDIO_EXTENSIONS)
-            )
+            needs_conv = ext in {".wma", ".aiff", ".mp2", ".mp1", ".3ga", ".dts", ".amr"}
             inspection = {
                 "needs_transcode": needs_conv,
                 "needs_audio_only": needs_conv,
@@ -628,13 +625,14 @@ with col_upload:
                 "video_codec": "",
                 "audio_codec": "native",
                 "container": ext.lstrip("."),
-                "reasons": ["MPEG or non-standard audio format — auto-converting to AAC/MP3 for AI compatibility"] if needs_conv else [],
+                "reasons": ["Non-standard legacy audio format — auto-converting to AAC for AI compatibility"] if needs_conv else [],
                 "duration_seconds": 0.0,
                 "file_size_bytes": file_size,
                 "is_video_file": False,
             }
             st.session_state["_inspect_cache_key"] = _inspect_cache_key
             st.session_state["_inspection_cache"] = inspection
+
         else:
             # Run ffprobe in a background thread so it never blocks Streamlit's
             # Tornado WebSocket heartbeat. asyncio.run() is safe inside a
