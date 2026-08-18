@@ -9,11 +9,13 @@ import streamlit as st
 from config import config, SUPPORTED_LANGUAGES
 
 MODEL_DISPLAY_NAMES: dict[str, str] = {
-    "gemini-2.0-flash":                 "NeuralFlash v2.0  🧠 Powerful",
-    "gemini-2.0-flash-lite":            "NeuralLite v2.0  ⚖️ Balanced",
-    "gemini-1.5-flash":                 "NeuralFlash v1.5  ⚡ Fast",
-    "gemini-1.5-pro":                   "NeuralPro v1.5    🔬 Research",
+    "gemini-2.5-flash":                 "NeuralFlash v2.5  🧠 Ultra Fast & Smart",
+    "gemini-2.5-pro":                   "NeuralPro v2.5    🔬 Deep Reasoning",
+    "gemini-1.5-flash":                 "NeuralFlash v1.5  ⚡ Fast & Reliable",
+    "gemini-1.5-pro":                   "NeuralPro v1.5    📊 Research",
+    "gemini-2.0-flash":                 "NeuralFlash v2.0  ⚖️ Legacy Flash",
 }
+
 
 def render_sidebar() -> tuple[str, str, str, str]:
     """Renders the dark-glass sidebar and returns (selected_model, target_language, source_language, extra_instructions)."""

@@ -77,19 +77,25 @@ def _is_auth_error(exc: Exception) -> bool:
 
 
 def _is_503_error(exc: BaseException) -> bool:
-    """
-    Return True if exc represents a transient 503 / UNAVAILABLE server error.
+    """Return True if exc represents a transient 503 / UNAVAILABLE server error."""
+    return _is_fallback_candidate_error(exc)
 
-    Extracted into a single helper to avoid the triple-duplicated detection
-    block that previously lived in ask_question, _generate_summary_stream,
-    and _generate_summary.
+
+def _is_fallback_candidate_error(exc: BaseException) -> bool:
     """
-    return (
-        isinstance(exc, _genai_errors.ServerError)
-        or "503" in str(exc)
-        or "UNAVAILABLE" in str(exc)
-        or "high demand" in str(exc).lower()
-    )
+    Return True if exc represents a 503 UNAVAILABLE, 404 NOT_FOUND (model discontinued/not found),
+    400 model deprecated, or high demand error that should trigger fallback to the next model.
+    """
+    err_str = str(exc).lower()
+    code = getattr(exc, "code", None) or getattr(exc, "status_code", None)
+    if code in (404, 503, 500, 502, 504):
+        return True
+    if isinstance(exc, _genai_errors.ServerError):
+        return True
+    if any(k in err_str for k in ("503", "unavailable", "high demand", "not_found", "404", "no longer available", "not found", "is not supported")):
+        return True
+    return False
+
 
 
 logger = logging.getLogger(__name__)
@@ -237,12 +243,15 @@ class GeminiVideoClient:
         """Return fallback model chain starting with configured model."""
         candidates = [
             self._model,
+            "gemini-2.5-flash",
+            "gemini-1.5-flash",
+            "gemini-2.5-pro",
+            "gemini-1.5-pro",
             "gemini-2.0-flash",
             "gemini-2.0-flash-lite",
-            "gemini-1.5-flash",
-            "gemini-1.5-pro",
         ]
         return list(dict.fromkeys([m for m in candidates if m]))
+
 
     def ask_question(self, remote_file_name: str, chat_history: list[dict[str, str]], question: str) -> str:
         """
@@ -282,12 +291,11 @@ class GeminiVideoClient:
                 logger.error("Chat error on model %s: %s", model_name, exc)
                 if _is_quota_error(exc):
                     raise APIKeyError("API quota exceeded.") from exc
-                if _is_auth_error(exc):
-                    raise APIKeyError("API authentication failed.") from exc
-
-                if _is_503_error(exc):
+                if _is_fallback_candidate_error(exc):
+                    logger.warning("Model '%s' unavailable (%s). Retrying with fallback model...", model_name, exc)
                     continue
                 raise SummaryGenerationError(f"Failed to generate answer: {exc}") from exc
+
 
         if last_exc is not None:
             raise SummaryGenerationError(
@@ -750,17 +758,18 @@ class GeminiVideoClient:
                         "Please check your API key in the .env file."
                     ) from exc
 
-                if _is_503_error(exc):
+                if _is_fallback_candidate_error(exc):
                     logger.warning(
-                        "Model '%s' returned 503 Unavailable (high demand). Retrying with fallback model...",
+                        "Model '%s' unavailable (%s). Retrying with fallback model...",
                         model_name,
+                        exc,
                     )
                     continue
                 raise exc
 
         if last_exc is not None:
             raise SummaryGenerationError(
-                "All AI models are currently experiencing high demand on the server. "
+                "All AI models are currently experiencing high demand or are unavailable. "
                 "Please wait 1-2 minutes and click 'Analyse Media' again."
             ) from last_exc
 
@@ -774,7 +783,7 @@ class GeminiVideoClient:
     ) -> str:
         """
         Call the generative model with the media file reference and return
-        the raw summary string, with automatic model fallback for 503 errors.
+        the raw summary string, with automatic model fallback for unavailable models.
         """
         fallback_chain = self._get_fallback_models()
         last_exc: Exception | None = None
@@ -818,13 +827,15 @@ class GeminiVideoClient:
                         "Please check your API key in the .env file."
                     ) from exc
 
-                if _is_503_error(exc):
+                if _is_fallback_candidate_error(exc):
                     logger.warning(
-                        "Model '%s' returned 503 Unavailable. Retrying with fallback model...",
+                        "Model '%s' unavailable (%s). Retrying with fallback model...",
                         model_name,
+                        exc,
                     )
                     continue
                 raise exc
+
 
         if last_exc is not None:
             raise SummaryGenerationError(
