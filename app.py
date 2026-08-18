@@ -53,23 +53,19 @@ except Exception:
     pass
 
 
-import html
 import io
-import typing
 import logging
+import os
 import time
-from datetime import datetime
+import typing
 from pathlib import Path
 
 import streamlit as st
 from ui.recorder import render_audio_recorder
 import ui.pipeline_state as _ps
-from ui.loading import show_loading_ui
 
 from config import (
-    ACCEPTED_AUDIO_EXTENSIONS,
     ACCEPTED_MEDIA_EXTENSIONS,
-    SUPPORTED_LANGUAGES,
     config,
 )
 
@@ -85,11 +81,9 @@ from gemini_client import (
     GeminiVideoClient,
     SummaryGenerationError,
     VideoProcessingError,
-    SummaryResult,
 )
-from transcoder import inspect_media, transcode_with_fallback, is_ffmpeg_available
+from transcoder import inspect_media, is_ffmpeg_available, is_ffprobe_available
 from exceptions import TranscodeError, InspectionError
-from queue_worker import get_queue_manager, JobStatus
 from ui.queue_status import render_queue_status
 
 # ---------------------------------------------------------------------------
@@ -100,14 +94,6 @@ logging.basicConfig(
     format="%(asctime)s [%(levelname)s] %(name)s — %(message)s",
 )
 logger = logging.getLogger(__name__)
-
-
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
-
-# Removed _persist_env_key, now in ui/sidebar.py
 
 
 # ---------------------------------------------------------------------------
@@ -135,9 +121,7 @@ cleanup_stale_temp_files(max_age_seconds=3600)
 # ---------------------------------------------------------------------------
 def _run_startup_health_checks() -> None:
     """Run environment, system binary, database, and temp folder health checks."""
-    import time
     from database import init_db
-    from transcoder import is_ffmpeg_available, is_ffprobe_available
 
     # 0. Read st.secrets safely now that st.set_page_config() has executed
     try:
@@ -147,6 +131,7 @@ def _run_startup_health_checks() -> None:
                     os.environ[_k] = str(_v)
     except Exception as secrets_exc:
         logger.debug("st.secrets processing skipped: %s", secrets_exc)
+
 
 
     # 1. Initialize SQLite DB
