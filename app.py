@@ -734,9 +734,8 @@ Encrypted/DRM files &nbsp;·&nbsp; Corrupted files &nbsp;·&nbsp; Files over {ma
 st.markdown("")
 show_mp3_button = False
 if uploaded_file is not None:
-    from pathlib import Path as _P
     _name = uploaded_file.name.lower()
-    _ext = _P(_name).suffix
+    _ext = Path(_name).suffix
     if _name.startswith("recorded_audio") or is_audio_file(_name):
         show_mp3_button = False
     elif _ext in {".mp4", ".mov", ".mkv", ".avi", ".3gp", ".flv"}:
@@ -779,7 +778,6 @@ else:
 # ---------------------------------------------------------------------------
 if (analyse_clicked or mp3_clicked) and uploaded_file is not None:
     from ui.analysis_runner import submit_analysis_job
-    from file_handler import is_audio_file
 
     if is_audio_file(uploaded_file.name):
         st.session_state.conversion_mode = None
@@ -787,6 +785,7 @@ if (analyse_clicked or mp3_clicked) and uploaded_file is not None:
         st.session_state.conversion_mode = "mp3"
     else:
         st.session_state.conversion_mode = None
+
 
 
     # Cleanup previous session's remote file

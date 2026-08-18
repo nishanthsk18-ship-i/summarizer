@@ -21,6 +21,8 @@ import io
 import logging
 import os
 from pathlib import Path
+from typing import Any, Callable
+
 
 
 import ui.pipeline_state as _ps
@@ -42,7 +44,7 @@ def build_analysis_fn(
     source_language: str,
     combined_instructions: str,
     conversion_mode: str | None,
-) -> object:
+) -> Callable[[], Any]:
     """
     Build and return the worker callable for a single analysis job.
 
@@ -270,7 +272,7 @@ def build_analysis_fn(
 
 def submit_analysis_job(
     *,
-    uploaded_file: object,
+    uploaded_file: Any,
     target_language: str,
     source_language: str,
     extra_instructions: str,

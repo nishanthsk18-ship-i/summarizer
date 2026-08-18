@@ -413,7 +413,7 @@ class GeminiVideoClient:
 
         file_size_mb = getattr(file_obj, "size", 0) / (1024 * 1024)
         if file_size_mb == 0:
-            if hasattr(file_obj, "getbuffer"):
+            if isinstance(file_obj, io.BytesIO):
                 file_size_mb = file_obj.getbuffer().nbytes / (1024 * 1024)
             elif hasattr(file_obj, "fileno"):
                 import os
@@ -562,7 +562,7 @@ class GeminiVideoClient:
                 ),
             )
             if uploaded_file and getattr(uploaded_file, "name", None):
-                _ACTIVE_REMOTE_FILES.add(uploaded_file.name)
+                _ACTIVE_REMOTE_FILES.add(str(uploaded_file.name))
             return uploaded_file
 
         except Exception as exc:
@@ -807,6 +807,7 @@ class GeminiVideoClient:
             raise SummaryGenerationError(
                 "All AI models are currently experiencing high demand. Please wait 1-2 minutes and try again."
             ) from last_exc
+        raise SummaryGenerationError("Failed to generate summary: No response received from AI models.")
 
     # ------------------------------------------------------------------
     # Interactive Q&A
@@ -851,7 +852,7 @@ class GeminiVideoClient:
             )
         )
 
-        for model_name in self._model_fallback_chain:
+        for model_name in self._get_fallback_models():
             try:
                 response = self._client.models.generate_content(
                     model=model_name,

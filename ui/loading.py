@@ -9,8 +9,8 @@ This guarantees zero style leaks, zero layout collapse, and pixel-perfect design
 from __future__ import annotations
 
 import html
-import streamlit as st
 import streamlit.components.v1 as components
+
 
 # ---------------------------------------------------------------------------
 # Base CSS embedded inside the HTML component
@@ -307,8 +307,6 @@ def show_loading_ui(
     else:
         labels = ["Upload", "Convert", "Cloud", "AI", "Done"]
         
-    total_steps = len(labels)
-    
     # ── Stepper HTML ──
     stepper_html = []
     for idx, label in enumerate(labels):
