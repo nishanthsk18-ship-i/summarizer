@@ -1,5 +1,6 @@
 """
-app.py — Streamlit UI for the Multilingual AI Media Summarizer.
+app.py — Multimodal Media Summarizer (v2.1.0 Production)
+Enterprise-grade Streamlit application for video and audio summarisation.
 
 Run with:
     streamlit run app.py

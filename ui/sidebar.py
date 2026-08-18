@@ -157,10 +157,11 @@ def render_sidebar() -> tuple[str, str, str, str]:
             """
 <div style="text-align: center; padding-top: 0.5rem; font-size: 11px; color: rgba(255, 255, 255, 0.25);">
     Powered by Advanced Multimodal AI · Built with Streamlit<br>
-    <span style="font-family: monospace; font-size: 10px; color: rgba(99, 179, 237, 0.6);">v2.0.0</span>
+    <span style="font-family: monospace; font-size: 10px; color: rgba(99, 179, 237, 0.8); font-weight: 600;">v2.1.0 (Production)</span>
 </div>
 """,
             unsafe_allow_html=True,
         )
+
 
         return selected_model, target_language, source_language, extra_instructions
