@@ -893,20 +893,7 @@ st.markdown(
 ">
     🔒 Zero footprint · Files deleted after processing · No data stored permanently · TLS 1.3 encrypted
 </div>
-
-<script>
-document.addEventListener('keydown', function(e) {
-    if (e.ctrlKey && e.key.toLowerCase() === 'u') {
-        e.preventDefault();
-        const uploader = document.querySelector('input[type="file"]');
-        if (uploader) uploader.click();
-    } else if (e.ctrlKey && e.key === 'Enter') {
-        e.preventDefault();
-        const btn = document.querySelector('.stButton button');
-        if (btn && !btn.disabled) btn.click();
-    }
-});
-</script>
 """,
     unsafe_allow_html=True,
 )
+

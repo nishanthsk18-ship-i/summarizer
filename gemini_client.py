@@ -832,6 +832,71 @@ class GeminiVideoClient:
             ) from last_exc
 
     # ------------------------------------------------------------------
+    # Interactive Q&A
+    # ------------------------------------------------------------------
+
+    def ask_question(
+        self,
+        remote_file_name: str,
+        chat_history: list[dict[str, str]],
+        prompt: str,
+    ) -> str:
+        """
+        Ask a follow-up question about an already-uploaded and indexed remote media file.
+        Maintains conversational history for multi-turn Q&A.
+        """
+        try:
+            remote_file = self._get_file_retry(remote_file_name)
+        except Exception as exc:
+            logger.warning("Could not retrieve remote file '%s' for Q&A: %s", remote_file_name, exc)
+            remote_file = None
+
+        # Build contents
+        contents: list[Any] = []
+        if remote_file:
+            contents.append(remote_file)
+
+        for msg in chat_history:
+            role = "user" if msg.get("role") == "user" else "model"
+            content = msg.get("content", "")
+            if content:
+                contents.append(
+                    genai_types.Content(
+                        role=role,
+                        parts=[genai_types.Part.from_text(text=content)],
+                    )
+                )
+
+        contents.append(
+            genai_types.Content(
+                role="user",
+                parts=[genai_types.Part.from_text(text=prompt)],
+            )
+        )
+
+        for model_name in self._model_fallback_chain:
+            try:
+                response = self._client.models.generate_content(
+                    model=model_name,
+                    contents=contents,
+                    config=genai_types.GenerateContentConfig(
+                        system_instruction=(
+                            "You are a helpful, accurate multimodal AI assistant answering questions about the provided media file. "
+                            "Ground your answers in the media context accurately. If the media does not mention something, state that clearly."
+                        ),
+                        temperature=0.4,
+                    ),
+                )
+                return (response.text or "").strip()
+            except Exception as exc:
+                if _is_503_error(exc):
+                    logger.warning("Model '%s' returned 503 during Q&A. Retrying with fallback...", model_name)
+                    continue
+                raise exc
+
+        raise SummaryGenerationError("All AI models are currently experiencing high demand. Please try asking again in a moment.")
+
+    # ------------------------------------------------------------------
     # Cleanup
     # ------------------------------------------------------------------
 
@@ -866,6 +931,7 @@ class GeminiVideoClient:
                 "⚠️  Remote file deletion skipped "
                 "(it expires automatically within 48 h)."
             )
+
 
 
 # ---------------------------------------------------------------------------
