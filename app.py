@@ -824,16 +824,6 @@ if (analyse_clicked or mp3_clicked) and uploaded_file is not None:
     )
 
     try:
-        from database import validate_and_use_key
-        custom_key = st.session_state.get("custom_api_key", "")
-        is_direct_gemini_key = bool(
-            custom_key and (custom_key.startswith("AIzaSy") or len(custom_key) > 20)
-        )
-        if not is_direct_gemini_key and not validate_and_use_key(custom_key):
-            st.error("Invalid or expired Custom Application Key. Please check your key or request a new one.")
-            st.session_state.processing = False
-            st.stop()
-
         job_id = submit_analysis_job(
             uploaded_file=uploaded_file,
             target_language=target_language,
@@ -844,6 +834,7 @@ if (analyse_clicked or mp3_clicked) and uploaded_file is not None:
         )
         st.session_state.queue_job_id = job_id
         logger.info("Analysis queued — job %s for file '%s'", job_id[:8], uploaded_file.name)
+
 
     except (APIKeyError, VideoProcessingError, SummaryGenerationError,
             TranscodeError, InspectionError) as exc:

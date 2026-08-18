@@ -54,56 +54,22 @@ def render_sidebar() -> tuple[str, str, str, str]:
 
         st.markdown("---")
 
-        # ── Access Configuration Header ──
+        # ── Access Status Header ──
         st.markdown(
-            '<div style="font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:2px; color:rgba(255,255,255,0.4); border-left:2px solid #63B3ED; padding-left:8px; margin-bottom:12px;">🔑 ACCESS CONFIGURATION</div>',
+            '<div style="font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:2px; color:rgba(255,255,255,0.4); border-left:2px solid #63B3ED; padding-left:8px; margin-bottom:12px;">⚡ ACCESS STATUS</div>',
             unsafe_allow_html=True,
         )
 
-        from database import get_active_key, validate_and_use_key, key_exists
+        from database import get_active_key
         default_key = get_active_key()
+        st.session_state.custom_api_key = default_key
 
-        key_mode = st.radio(
-            "API Key Access Mode",
-            ["⚡ Free Built-in Key", "🔑 Custom API Key"],
-            index=0 if st.session_state.get("key_mode_choice", "⚡ Free Built-in Key") == "⚡ Free Built-in Key" else 1,
-            key="key_mode_choice",
-            label_visibility="collapsed",
+        st.markdown(
+            '<div style="font-size:11px; color:#68D391; background:rgba(104,211,145,0.1); border:1px solid rgba(104,211,145,0.25); padding:8px 12px; border-radius:8px; margin-bottom:12px; font-weight:600; display:flex; align-items:center; gap:8px;">'
+            '<span>⚡</span> <span>Server AI Active (Free Unlimited Access)</span></div>',
+            unsafe_allow_html=True,
         )
 
-        if key_mode == "⚡ Free Built-in Key":
-            st.markdown(
-                '<div style="font-size:11px; color:#68D391; background:rgba(104,211,145,0.1); border:1px solid rgba(104,211,145,0.25); padding:6px 10px; border-radius:8px; margin-bottom:12px; font-weight:600; display:flex; align-items:center; gap:6px;">'
-                '<span>⚡</span> <span>Server Host Key Active (Free Access)</span></div>',
-                unsafe_allow_html=True,
-            )
-            st.session_state.custom_api_key = default_key
-        else:
-            current_custom = st.session_state.get("custom_api_key_user_input", "")
-            api_key_input = st.text_input(
-                "Enter Custom API Access Key",
-                value=current_custom,
-                type="password",
-                placeholder="Enter key...",
-                help="Enter your personal API Access Key or custom key.",
-                key="custom_api_key_user_input",
-            )
-            
-            # Accept keys that: (a) exist in our managed DB, OR (b) are direct
-            # Google API keys (start with 'AIzaSy'). Anything else is unverified.
-            is_valid_key = bool(
-                api_key_input
-                and (key_exists(api_key_input) or api_key_input.startswith("AIzaSy"))
-            )
-            if is_valid_key:
-                st.markdown('<div style="font-size:11px; color:#68D391; margin-top:-8px; margin-bottom:12px; font-weight:600;">✓ Valid Key</div>', unsafe_allow_html=True)
-                st.session_state.custom_api_key = api_key_input
-            elif api_key_input:
-                st.markdown('<div style="font-size:11px; color:#FC8181; margin-top:-8px; margin-bottom:12px; font-weight:600;">⚠️ Invalid key — check format</div>', unsafe_allow_html=True)
-                st.session_state.custom_api_key = default_key   # fall back to built-in
-            else:
-                st.markdown('<div style="font-size:11px; color:#E2E8F0; opacity:0.6; margin-top:-8px; margin-bottom:12px;">Please enter your API Key</div>', unsafe_allow_html=True)
-                st.session_state.custom_api_key = default_key
 
 
         # ── Model Selection Header ──
