@@ -23,6 +23,29 @@ from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.enum.table import WD_TABLE_ALIGNMENT
 
 
+import os
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
+
+_PDF_FONT = "Helvetica"
+_PDF_FONT_BOLD = "Helvetica-Bold"
+
+for _fpath in [
+    "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+    "/usr/share/fonts/truetype/freefont/FreeSans.ttf",
+    "C:\\Windows\\Fonts\\arial.ttf",
+    "C:\\Windows\\Fonts\\segoeui.ttf",
+]:
+    if os.path.exists(_fpath):
+        try:
+            pdfmetrics.registerFont(TTFont("AppUnicodeFont", _fpath))
+            _PDF_FONT = "AppUnicodeFont"
+            _PDF_FONT_BOLD = "AppUnicodeFont"
+            break
+        except Exception:
+            pass
+
+
 def clean_markdown_formatting(text: str) -> str:
     """Removes or converts raw markdown tags for PDF paragraph rendering."""
     if not text:
@@ -59,7 +82,7 @@ def generate_pdf_bytes(title: str, summary_text: str, metadata: Dict[str, Any] |
     title_style = ParagraphStyle(
         'DocTitle',
         parent=styles['Normal'],
-        fontName='Helvetica-Bold',
+        fontName=_PDF_FONT_BOLD,
         fontSize=20,
         leading=24,
         textColor=colors.HexColor('#1A202C'),
@@ -69,7 +92,7 @@ def generate_pdf_bytes(title: str, summary_text: str, metadata: Dict[str, Any] |
     subtitle_style = ParagraphStyle(
         'DocSubTitle',
         parent=styles['Normal'],
-        fontName='Helvetica',
+        fontName=_PDF_FONT,
         fontSize=10,
         leading=14,
         textColor=colors.HexColor('#718096'),
@@ -78,7 +101,7 @@ def generate_pdf_bytes(title: str, summary_text: str, metadata: Dict[str, Any] |
     h1_style = ParagraphStyle(
         'Heading1_Custom',
         parent=styles['Normal'],
-        fontName='Helvetica-Bold',
+        fontName=_PDF_FONT_BOLD,
         fontSize=14,
         leading=18,
         textColor=colors.HexColor('#2B6CB0'),
@@ -88,7 +111,7 @@ def generate_pdf_bytes(title: str, summary_text: str, metadata: Dict[str, Any] |
     h2_style = ParagraphStyle(
         'Heading2_Custom',
         parent=styles['Normal'],
-        fontName='Helvetica-Bold',
+        fontName=_PDF_FONT_BOLD,
         fontSize=12,
         leading=16,
         textColor=colors.HexColor('#2D3748'),
@@ -98,7 +121,7 @@ def generate_pdf_bytes(title: str, summary_text: str, metadata: Dict[str, Any] |
     body_style = ParagraphStyle(
         'Body_Custom',
         parent=styles['Normal'],
-        fontName='Helvetica',
+        fontName=_PDF_FONT,
         fontSize=10,
         leading=14,
         textColor=colors.HexColor('#2D3748'),
@@ -108,13 +131,14 @@ def generate_pdf_bytes(title: str, summary_text: str, metadata: Dict[str, Any] |
     bullet_style = ParagraphStyle(
         'Bullet_Custom',
         parent=styles['Normal'],
-        fontName='Helvetica',
+        fontName=_PDF_FONT,
         fontSize=10,
         leading=14,
         textColor=colors.HexColor('#2D3748'),
         leftIndent=15,
         spaceAfter=4,
     )
+
 
     story = []
 

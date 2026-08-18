@@ -37,7 +37,10 @@ def _digest_equal(a: str, b: str) -> bool:
 def init_db() -> None:
     """Initialize the SQLite database and create the api_keys table if it doesn't exist."""
     with sqlite3.connect(DB_PATH, timeout=10) as conn:
+        conn.execute("PRAGMA journal_mode=WAL;")
+        conn.execute("PRAGMA busy_timeout=5000;")
         cursor = conn.cursor()
+
         cursor.execute(
             """
             CREATE TABLE IF NOT EXISTS api_keys (
