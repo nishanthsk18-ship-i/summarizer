@@ -544,7 +544,6 @@ with col_upload:
         )
         
     # Determine which file to process:
-    # If fresh audio was just recorded, prioritize it over stale uploader state.
     uploaded_file: typing.Any = None
     if audio_bytes is not None:
         st.session_state["recorded_audio_bytes"] = audio_bytes
@@ -555,11 +554,6 @@ with col_upload:
             ext = ".m4a"
         uploaded_file = io.BytesIO(audio_bytes)
         uploaded_file.name = f"recorded_audio{ext}"
-    elif raw_uploaded_file is not None and st.session_state.get("recorded_audio_bytes") is None:
-        uploaded_file = raw_uploaded_file
-    elif raw_uploaded_file is not None:
-        uploaded_file = raw_uploaded_file
-        st.session_state["recorded_audio_bytes"] = None
     elif st.session_state.get("recorded_audio_bytes") is not None:
         cached_bytes: bytes = st.session_state["recorded_audio_bytes"]
         ext = ".webm"
@@ -569,6 +563,9 @@ with col_upload:
             ext = ".m4a"
         uploaded_file = io.BytesIO(cached_bytes)
         uploaded_file.name = f"recorded_audio{ext}"
+    elif raw_uploaded_file is not None:
+        uploaded_file = raw_uploaded_file
+
 
 
     if uploaded_file is not None:

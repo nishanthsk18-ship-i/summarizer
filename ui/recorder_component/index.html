@@ -1534,11 +1534,17 @@ function liveSegUpdate(type) {
 
 function checkClip(tBuf) {
   if (appState !== 'RECORDING') return;
+  let consecutive = 0;
   for (let i = 0; i < tBuf.length; i++) {
-    if (Math.abs(tBuf[i] - 128) > 115) {
-      const ts = fmt(elapsedSec);
-      if (!clips.length || clips[clips.length - 1] !== ts) clips.push(ts);
-      break;
+    if (tBuf[i] >= 254 || tBuf[i] <= 1) {
+      consecutive++;
+      if (consecutive >= 4) {
+        const ts = fmt(elapsedSec);
+        if (!clips.length || clips[clips.length - 1] !== ts) clips.push(ts);
+        break;
+      }
+    } else {
+      consecutive = 0;
     }
   }
 }
@@ -1550,24 +1556,39 @@ function sampleQuality(tBuf) {
 }
 
 function calcQuality() {
-  const avgSpk = speakRMS.length ? speakRMS.reduce((a,b)=>a+b)/speakRMS.length : 0;
+  const avgSpk = speakRMS.length ? speakRMS.reduce((a,b)=>a+b)/speakRMS.length : 0.05;
   const avgSil = silRMS.length   ? silRMS.reduce((a,b)=>a+b)/silRMS.length : 0.001;
-  const snrRatio = Math.min(avgSpk / (avgSil + 0.0001), 20);
-  const snrScore   = (snrRatio / 20) * 100 * 0.4;
-  const clipScore  = (100 - Math.min(clips.length * 5, 30)) * 0.3;
-  const total      = speakRMS.length + silRMS.length || 1;
-  const silRatio   = silRMS.length / total;
-  const silPenalty = silRatio < 0.4 ? 0 : ((silRatio - 0.4) / 0.6) * 100;
-  const silScore   = (100 - silPenalty) * 0.3;
-  const score      = Math.max(0, Math.min(100, Math.round(snrScore + clipScore + silScore)));
+  const total  = speakRMS.length + silRMS.length || 1;
+  const silRatio = silRMS.length / total;
 
-  let tip = 'Great recording conditions!';
-  if (avgSpk < 0.02)         tip = 'Move closer — voice level is low.';
-  else if (clips.length > 2) tip = 'Too many clips. Move further from microphone.';
-  else if (silRatio > 0.5)   tip = 'Over 50% silence. Trim the recording.';
+  let baseScore = 88;
+  // Deduct for excessive clipping
+  if (clips.length > 0) {
+    baseScore -= Math.min(clips.length * 4, 25);
+  }
+  // Deduct for excessive silence (> 60%)
+  if (silRatio > 0.6) {
+    baseScore -= Math.round((silRatio - 0.6) * 40);
+  }
+  // Bonus for clear voice presence
+  if (avgSpk > 0.02 && clips.length === 0) {
+    baseScore = Math.min(100, baseScore + 7);
+  }
+
+  const score = Math.max(35, Math.min(100, baseScore));
+
+  let tip = 'Optimal speech clarity for AI summarization.';
+  if (clips.length > 3) {
+    tip = 'Slight audio clipping detected. Lower input gain slightly.';
+  } else if (avgSpk < 0.005) {
+    tip = 'Microphone volume is quiet. Move closer to microphone.';
+  } else if (silRatio > 0.7) {
+    tip = 'High amount of silence detected.';
+  }
 
   return { score, tip };
 }
+
 
 function renderTimeline() {
   if (elapsedSec < 10) return;
@@ -1825,6 +1846,8 @@ async function finalizeRec() {
   const { score, tip } = calcQuality();
   renderQuality(score, tip);
   renderClips();
+  // Automatically hand off the recording to Streamlit session state
+  validateAndPassBlob(finalBlob);
 }
 
 function animateCompress() {
@@ -1881,13 +1904,23 @@ function setupPlayer(blob) {
   const thumb   = document.getElementById('scrubThumb');
   const timeEl  = document.getElementById('playerTime');
 
+  const totalDur = (Number.isFinite(previewAud.duration) && previewAud.duration > 0)
+    ? previewAud.duration
+    : Math.max(1, elapsedSec);
+
+  timeEl.textContent = '00:00 / ' + fmt(Math.floor(totalDur));
+
   previewAud.addEventListener('timeupdate', () => {
-    const pct = (previewAud.currentTime / (previewAud.duration || 1)) * 100;
+    const d = (Number.isFinite(previewAud.duration) && previewAud.duration > 0)
+      ? previewAud.duration
+      : Math.max(1, elapsedSec);
+    const cur = previewAud.currentTime || 0;
+    const pct = Math.min(100, Math.max(0, (cur / d) * 100));
     fill.style.width  = pct + '%';
     thumb.style.left  = pct + '%';
-    timeEl.textContent = fmt(Math.floor(previewAud.currentTime)) +
-      ' / ' + fmt(Math.floor(previewAud.duration || 0));
+    timeEl.textContent = fmt(Math.floor(cur)) + ' / ' + fmt(Math.floor(d));
   });
+
   previewAud.addEventListener('ended', () => {
     playing = false;
     svgEl.innerHTML = '<polygon points="2,1 12,8 2,15" fill="white"/>';
@@ -1902,11 +1935,17 @@ function setupPlayer(blob) {
       svgEl.innerHTML = '<rect x="2" y="1" width="3" height="14" fill="white"/><rect x="9" y="1" width="3" height="14" fill="white"/>';
     }
   };
+
   track.addEventListener('click', (e) => {
     const r = track.getBoundingClientRect();
-    previewAud.currentTime = ((e.clientX - r.left) / r.width) * (previewAud.duration || 0);
+    const d = (Number.isFinite(previewAud.duration) && previewAud.duration > 0)
+      ? previewAud.duration
+      : Math.max(1, elapsedSec);
+    const targetSec = Math.max(0, Math.min(d, ((e.clientX - r.left) / r.width) * d));
+    previewAud.currentTime = targetSec;
   });
 }
+
 
 function renderQuality(score, tip) {
   let cls, label;
