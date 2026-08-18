@@ -72,23 +72,24 @@ def build_analysis_fn(
             _ps.update(stage=1, pct=100.0, bytes_total=len(file_bytes), sub_message=file_name)
 
             # ── Inspect media ───────────────────────────────────────────────
+            _is_audio_input = is_audio_file(file_name)
             try:
                 inspection = asyncio.run(inspect_media(str(_tmp_in)))
             except InspectionError as exc:
                 logger.warning("ffprobe inspection failed: %s — using conservative defaults", exc)
                 inspection = {
-                    "needs_transcode": True,
+                    "needs_transcode": False if _is_audio_input else True,
                     "needs_audio_transcode": False,
-                    "is_video_file": True,
-                    "detected_video_codec": "unknown",
-                    "detected_audio_codec": "",
+                    "is_video_file": not _is_audio_input,
+                    "detected_video_codec": "" if _is_audio_input else "unknown",
+                    "detected_audio_codec": "opus" if _is_audio_input else "",
                     "is_variable_framerate": False,
-                    "detected_container": "",
+                    "detected_container": "webm" if _is_audio_input else "",
                     "detected_pix_fmt": "",
                     "detected_profile": "",
                     "is_iphone": False,
                     "is_android": False,
-                    "incompatibility_reasons": ["ffprobe inspection failed — transcoding as precaution"],
+                    "incompatibility_reasons": [] if _is_audio_input else ["ffprobe inspection failed — transcoding as precaution"],
                     "duration_seconds": 0.0,
                     "file_size_bytes": len(file_bytes),
                 }
@@ -96,6 +97,14 @@ def build_analysis_fn(
             is_iphone   = inspection.get("is_iphone", False)
             is_android  = inspection.get("is_android", False)
             is_whatsapp = inspection.get("is_whatsapp", False)
+
+            # Defensive: pure audio files natively accepted by Gemini API never need video transcoding
+            if _is_audio_input or not inspection.get("is_video_file"):
+                inspection["is_video_file"] = False
+                # If audio is already a standard format, avoid unnecessary transcode
+                ext_low = Path(file_name).suffix.lower()
+                if ext_low in {".webm", ".mp3", ".wav", ".m4a", ".ogg", ".flac", ".aac"} or file_name.startswith("recorded_audio"):
+                    inspection["needs_transcode"] = False
 
             if inspection.get("needs_transcode"):
                 _ps.update(
@@ -108,7 +117,6 @@ def build_analysis_fn(
                               else ("Android recording" if is_android else "Converting format"))
                     ),
                 )
-
             else:
                 _ps.update(skipped_transcode=True)
 
@@ -117,8 +125,9 @@ def build_analysis_fn(
                 from transcoder import mp4_to_mp3
                 _ps.update(stage=1.5, stage_label="Extracting Audio…")
                 # If input file is already an audio recording or audio track, bypass video extraction
-                if not inspection.get("is_video_file") and not inspection.get("video_codec"):
+                if _is_audio_input or not inspection.get("is_video_file") and not inspection.get("video_codec"):
                     logger.info("Input '%s' is already an audio file — skipping video extraction", effective_file_name)
+                    inspection["needs_transcode"] = False
                 else:
                     try:
                         mp3_path = asyncio.run(mp4_to_mp3(str(_tmp_in)))
@@ -132,6 +141,7 @@ def build_analysis_fn(
                             input_path=str(_tmp_in),
                             reasons=["Audio extraction failed. Try '🚀 Analyse Media' to process the full video instead."],
                         ) from exc
+
 
 
             # ── Stage 2: Transcode if needed ────────────────────────────────

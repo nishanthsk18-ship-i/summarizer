@@ -368,8 +368,18 @@ async def inspect_media(file_path: str) -> dict[str, Any]:
             container_bad = True
             break
 
-    needs_transcode = bool(video_bad or container_bad or is_vfr or is_whatsapp)
-    needs_audio_only = audio_bad and not video_bad and not container_bad and not is_vfr
+    if is_video_file:
+        needs_transcode = bool(video_bad or container_bad or is_vfr or is_whatsapp)
+        needs_audio_only = audio_bad and not video_bad and not container_bad and not is_vfr
+    else:
+        # Pure audio file (e.g. recorded_audio.webm, mp3, wav, ogg, m4a, flac)
+        # Google Gemini natively accepts webm, mp3, wav, ogg, m4a, flac audio formats.
+        audio_incompatible = audio_codec in {"dts", "truehd", "wmalossless", "wmapro"}
+        needs_transcode = bool(audio_incompatible or (container_bad and container not in {"matroska,webm", "webm", "ogg", "wav", "mp3", "m4a", "flac", "aac"}))
+        needs_audio_only = False
+        is_vfr = False
+        reasons = [r for r in reasons if "Video" not in r and "frame rate" not in r and "Pixel format" not in r]
+
 
 
     return {
@@ -573,10 +583,10 @@ async def transcode_with_fallback(
 
     # ── Tier 1: Nuclear video + audio transcode ────────────────────────
     uid = uuid.uuid4().hex
-    if audio_only_mode:
-        tier1_out = _TMP_DIR / f"{uid}_{stem}_audio_fixed.mp4"
-        tier1_cmd = _build_audio_only_video_cmd(in_path, tier1_out)
-        _log("🔄 Audio codec incompatible — re-encoding audio stream only…")
+    if not inspection.get("is_video_file", True) or audio_only_mode:
+        tier1_out = _TMP_DIR / f"{uid}_{stem}_audio_fixed.m4a"
+        tier1_cmd = _build_tier2_audio_cmd(in_path, tier1_out)
+        _log("🔄 Audio format processing — encoding audio stream to standard AAC…")
     else:
         tier1_out = _TMP_DIR / f"{uid}_{stem}_transcoded.mp4"
         tier1_cmd = _build_nuclear_video_cmd(
@@ -588,6 +598,7 @@ async def transcode_with_fallback(
         )
         reasons = inspection.get("reasons", [])
         _log(f"🔄 Transcoding to H.264 — reasons: {'; '.join(reasons) or 'container compatibility'}")
+
 
     if _ps is not None:
         _ps.update(job_id=job_id, stage=2, stage_label="Converting Format…", ffmpeg_pct=0.0)

@@ -799,11 +799,15 @@ else:
 # ---------------------------------------------------------------------------
 if (analyse_clicked or mp3_clicked) and uploaded_file is not None:
     from ui.analysis_runner import submit_analysis_job
+    from file_handler import is_audio_file
 
-    if mp3_clicked:
+    if is_audio_file(uploaded_file.name):
+        st.session_state.conversion_mode = None
+    elif mp3_clicked:
         st.session_state.conversion_mode = "mp3"
     else:
         st.session_state.conversion_mode = None
+
 
     # Cleanup previous session's remote file
     if st.session_state.current_remote_file:
