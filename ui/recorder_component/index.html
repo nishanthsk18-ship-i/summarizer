@@ -1089,45 +1089,51 @@ async function initAudioChain(stream) {
   analyserRaw.smoothingTimeConstant = 0.8;
   source.connect(analyserRaw);
 
-  // Node 2: High pass filter
+  // Node 2: High pass filter (kills low-frequency desk rumbles)
   const highpass = audioCtx.createBiquadFilter();
   highpass.type = "highpass";
-  highpass.frequency.value = isClassroom ? 100 : 80;
+  highpass.frequency.value = isClassroom ? 95 : 75;
   highpass.Q.value = 0.7;
 
-  // Node 3: Low mid cut (300Hz room resonance)
+  // Node 3: Low mid cut (280Hz room resonance & chest boom)
   const lowMidCut = audioCtx.createBiquadFilter();
   lowMidCut.type = "peaking";
-  lowMidCut.frequency.value = 300;
-  lowMidCut.gain.value = isClassroom ? -6 : -4;
-  lowMidCut.Q.value = 1.4;
+  lowMidCut.frequency.value = 280;
+  lowMidCut.gain.value = isClassroom ? -5 : -3.5;
+  lowMidCut.Q.value = 1.2;
 
-  // Node 4: Presence boost (2.5kHz speech clarity)
+  // Node 4: Presence boost (2.8kHz speech clarity & articulation)
   const presenceBoost = audioCtx.createBiquadFilter();
   presenceBoost.type = "peaking";
-  presenceBoost.frequency.value = 2500;
-  presenceBoost.gain.value = isClassroom ? 4 : 3;
-  presenceBoost.Q.value = 1.0;
+  presenceBoost.frequency.value = 2800;
+  presenceBoost.gain.value = isClassroom ? 4.5 : 3.5;
+  presenceBoost.Q.value = 1.1;
 
-  // Node 5: Dynamics Compressor
+  // Node 5: Air Boost High Shelf (6kHz open vocal sparkle)
+  const airBoost = audioCtx.createBiquadFilter();
+  airBoost.type = "highshelf";
+  airBoost.frequency.value = 6000;
+  airBoost.gain.value = isClassroom ? 2.5 : 3.0;
+
+  // Node 6: Dynamics Compressor (smooth broadcast leveling)
   const compressor = audioCtx.createDynamicsCompressor();
-  compressor.threshold.value = isClassroom ? -18 : -24;
-  compressor.knee.value = 20;
-  compressor.ratio.value = isClassroom ? 8 : 6;
-  compressor.attack.value = isClassroom ? 0.005 : 0.003;
-  compressor.release.value = 0.15;
+  compressor.threshold.value = isClassroom ? -20 : -22;
+  compressor.knee.value = 18;
+  compressor.ratio.value = isClassroom ? 5 : 4;
+  compressor.attack.value = 0.003;
+  compressor.release.value = 0.18;
 
-  // Node 6: High frequency roll-off
+  // Node 7: High frequency roll-off (12kHz smooth studio cutoff)
   const lowpass = audioCtx.createBiquadFilter();
   lowpass.type = "lowpass";
-  lowpass.frequency.value = isClassroom ? 7000 : 8000;
+  lowpass.frequency.value = isClassroom ? 12000 : 14000;
   lowpass.Q.value = 0.7;
 
-  // Node 7: Makeup gain
+  // Node 8: Makeup gain (normalizes to broadcast loudness)
   const makeupGain = audioCtx.createGain();
-  makeupGain.gain.value = isClassroom ? 1.7 : 1.5;
+  makeupGain.gain.value = isClassroom ? 1.85 : 1.65;
 
-  // Dedicated Noise Gate Node (Fix 5)
+  // Dedicated Noise Gate Node
   const noiseGateNode = audioCtx.createGain();
   noiseGateNode.gain.value = 1.0;
 
@@ -1136,7 +1142,7 @@ async function initAudioChain(stream) {
   spectralAnalyser.fftSize = 2048;
   highpass.connect(spectralAnalyser);
 
-  // Silence Analyser tapped AFTER processing chain (Fix 7)
+  // Silence Analyser tapped AFTER processing chain
   const silenceAnalyser = audioCtx.createAnalyser();
   silenceAnalyser.fftSize = 2048;
   silenceAnalyser.smoothingTimeConstant = 0.65;
@@ -1144,11 +1150,12 @@ async function initAudioChain(stream) {
   // Destination stream for MediaRecorder
   const destination = audioCtx.createMediaStreamDestination();
 
-  // Connect 7-Node chain + Noise Gate + Analysers
+  // Connect 8-Node studio chain + Noise Gate + Analysers
   source
     .connect(highpass)
     .connect(lowMidCut)
     .connect(presenceBoost)
+    .connect(airBoost)
     .connect(compressor)
     .connect(lowpass)
     .connect(makeupGain)
@@ -1157,15 +1164,16 @@ async function initAudioChain(stream) {
 
   noiseGateNode.connect(silenceAnalyser);
 
-  // Store in window._audioNodes for global teardown (Fix 8)
+  // Store in window._audioNodes for global teardown
   window._audioNodes = {
-    source, highpass, lowMidCut, presenceBoost,
+    source, highpass, lowMidCut, presenceBoost, airBoost,
     compressor, lowpass, makeupGain, noiseGate: noiseGateNode,
     destination, analyserRaw, spectralAnalyser, silenceAnalyser
   };
   window._rawStream = stream;
 
-  console.log("[MIC QUALITY] Audio chain initialized (7-Node DSP)");
+  console.log("[MIC QUALITY] Studio Audio Chain Initialized (8-Node High-Definition DSP)");
+
   console.log("[MIC QUALITY] AudioContext sample rate:", audioCtx.sampleRate);
 
   return destination.stream;
@@ -1223,11 +1231,11 @@ function processSpectralGate() {
 // ═══════════════════════════════════════════════════════════════════════════
 
 function getBitrate(durationSeconds) {
-  if (durationSeconds < 300)   return 48000;  // 0-5min: 48kbps (high-clarity voice speech)
-  if (durationSeconds < 900)   return 32000;  // 5-15min: 32kbps
-  if (durationSeconds < 1800)  return 24000;  // 15-30min: 24kbps
-  return 16000;                               // 30min+: 16kbps
+  if (durationSeconds < 900)   return 128000; // 0-15min: 128kbps (studio broadcast voice clarity)
+  if (durationSeconds < 2400)  return 96000;  // 15-40min: 96kbps (high-definition speech)
+  return 64000;                               // 40min+: 64kbps (clean crisp speech)
 }
+
 
 function makeMR(bitrate) {
   selectedMimeType = selectBestCodec();
@@ -1841,7 +1849,8 @@ async function reencodeBlob(blob) {
               : aud.mozCaptureStream ? aud.mozCaptureStream() : null;
     if (!st) { URL.revokeObjectURL(url); resolve(blob); return; }
     const ch = [];
-    const mr = new MediaRecorder(st, { mimeType: 'audio/webm;codecs=opus', audioBitsPerSecond: 32000 });
+    const mr = new MediaRecorder(st, { mimeType: 'audio/webm;codecs=opus', audioBitsPerSecond: 96000 });
+
     mr.ondataavailable = (e) => { if (e.data.size > 0) ch.push(e.data); };
     mr.onstop = () => {
       const out = new Blob(ch, { type: 'audio/webm' });
