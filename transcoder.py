@@ -36,7 +36,7 @@ import time
 import uuid
 from fractions import Fraction
 from pathlib import Path
-from typing import Any, AsyncGenerator
+from typing import Any, AsyncGenerator, Callable
 
 from exceptions import InspectionError, TranscodeError, UnsupportedFormatError
 
@@ -585,7 +585,7 @@ async def transcode_with_fallback(
     uid = uuid.uuid4().hex
     if not inspection.get("is_video_file", True) or audio_only_mode:
         tier1_out = _TMP_DIR / f"{uid}_{stem}_audio_fixed.m4a"
-        tier1_cmd = _build_tier2_audio_cmd(in_path, tier1_out)
+        tier1_cmd = _build_audio_extract_cmd(in_path, tier1_out)
         _log("🔄 Audio format processing — encoding audio stream to standard AAC…")
     else:
         tier1_out = _TMP_DIR / f"{uid}_{stem}_transcoded.mp4"
@@ -603,7 +603,6 @@ async def transcode_with_fallback(
     if _ps is not None:
         _ps.update(job_id=job_id, stage=2, stage_label="Converting Format…", ffmpeg_pct=0.0)
 
-    tier1_success = False
     tier1_proc: asyncio.subprocess.Process | None = None
     try:
         tier1_proc = await asyncio.create_subprocess_exec(
@@ -616,7 +615,6 @@ async def transcode_with_fallback(
         await asyncio.wait_for(tier1_proc.wait(), timeout=tier1_timeout)
 
         if tier1_proc.returncode == 0 and tier1_out.exists() and tier1_out.stat().st_size > 0:
-            tier1_success = True
             if _ps is not None:
                 _ps.update(job_id=job_id, ffmpeg_pct=100.0, stage_label="Conversion complete")
             out_mb = tier1_out.stat().st_size / (1024 * 1024)

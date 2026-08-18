@@ -22,12 +22,12 @@ import threading
 import time
 import io
 from pathlib import Path
-from typing import Callable, Any, Iterator, cast
+from typing import Callable, Any, Iterator
 import httpx
 
 from google import genai
 from google.genai import types as genai_types
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 from tenacity import (
     RetryError,
     retry,
@@ -38,13 +38,7 @@ from tenacity import (
 
 from config import config
 from prompts import build_system_prompt, build_user_prompt
-from transcoder import (
-    is_ffmpeg_available,
-    needs_transcoding,
-    inspect_media,
-    transcode_with_fallback,
-)
-from exceptions import TranscodeError, InspectionError
+
 
 # Lazy import — pipeline_state only exists when running inside Streamlit
 try:
@@ -269,54 +263,6 @@ class GeminiVideoClient:
         return list(dict.fromkeys([m for m in candidates if m]))
 
 
-    def ask_question(self, remote_file_name: str, chat_history: list[dict[str, str]], question: str) -> str:
-        """
-        Ask a follow-up question based on the uploaded media with automatic model fallback for 503.
-        """
-        fallback_chain = self._get_fallback_models()
-        last_exc: Exception | None = None
-
-        for model_name in fallback_chain:
-            try:
-                remote_file = self._client.files.get(name=remote_file_name)
-
-                system_instruction = "You are a helpful educational assistant. Answer the user's questions accurately based on the provided media file. If the answer is not in the media, say you don't know based on the context."
-
-                contents: list[Any] = [remote_file]
-
-                for msg in chat_history:
-                    role = "user" if msg["role"] == "user" else "model"
-                    contents.append(
-                        {"role": role, "parts": [{"text": msg["content"]}]}
-                    )
-
-                contents.append({"role": "user", "parts": [{"text": question}]})
-
-                response = self._client.models.generate_content(
-                    model=model_name,
-                    contents=contents,
-                    config=genai_types.GenerateContentConfig(
-                        system_instruction=system_instruction,
-                        temperature=0.3,
-                    ),
-                )
-                return response.text or ""
-
-            except Exception as exc:
-                last_exc = exc
-                logger.error("Chat error on model %s: %s", model_name, exc)
-                if _is_quota_error(exc):
-                    raise APIKeyError("API quota exceeded.") from exc
-                if _is_fallback_candidate_error(exc):
-                    logger.warning("Model '%s' unavailable (%s). Retrying with fallback model...", model_name, exc)
-                    continue
-                raise SummaryGenerationError(f"Failed to generate answer: {exc}") from exc
-
-
-        if last_exc is not None:
-            raise SummaryGenerationError(
-                "All AI models are currently experiencing high demand. Please wait 1-2 minutes and try again."
-            ) from last_exc
 
     def summarise_stream(
         self,

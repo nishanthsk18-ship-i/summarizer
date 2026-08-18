@@ -2,9 +2,6 @@
 ui/sidebar.py — Glassmorphism sidebar for model selection, key input, and options.
 """
 
-from pathlib import Path
-import os
-import stat
 import streamlit as st
 from config import config, SUPPORTED_LANGUAGES
 

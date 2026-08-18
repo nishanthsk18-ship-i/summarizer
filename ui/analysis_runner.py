@@ -22,7 +22,6 @@ import logging
 import os
 from pathlib import Path
 
-import streamlit as st
 
 import ui.pipeline_state as _ps
 from gemini_client import GeminiVideoClient, SummaryResult
