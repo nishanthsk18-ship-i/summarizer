@@ -29,6 +29,8 @@ from gemini_client import GeminiVideoClient, SummaryResult
 from exceptions import TranscodeError, InspectionError
 from transcoder import inspect_media, transcode_with_fallback, is_ffmpeg_available
 from queue_worker import get_queue_manager
+from file_handler import is_audio_file
+
 
 logger = logging.getLogger(__name__)
 
