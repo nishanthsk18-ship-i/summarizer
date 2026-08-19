@@ -62,10 +62,11 @@ ACCEPTED_AUDIO_EXTENSIONS: list[str] = [
     ".wma", ".aiff", ".aif", ".caf", ".amr", ".awb", ".mpeg", ".mpg", ".mp2", ".mp1",
 ]
 
-# Combined list for validation
-ACCEPTED_MEDIA_EXTENSIONS: list[str] = (
+# Combined unique list for validation and file uploader
+ACCEPTED_MEDIA_EXTENSIONS: list[str] = sorted(list(dict.fromkeys(
     ACCEPTED_VIDEO_EXTENSIONS + ACCEPTED_AUDIO_EXTENSIONS
-)
+)))
+
 
 
 
