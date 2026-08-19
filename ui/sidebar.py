@@ -59,9 +59,7 @@ def render_sidebar() -> tuple[str, str, str, str]:
             unsafe_allow_html=True,
         )
 
-        from database import get_active_key
-        default_key = get_active_key()
-        st.session_state.custom_api_key = default_key
+        st.session_state.custom_api_key = config.gemini_api_key
 
         st.markdown(
             '<div style="font-size:11px; color:#68D391; background:rgba(104,211,145,0.1); border:1px solid rgba(104,211,145,0.25); padding:8px 12px; border-radius:8px; margin-bottom:12px; font-weight:600; display:flex; align-items:center; gap:8px;">'

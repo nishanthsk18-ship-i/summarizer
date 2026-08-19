@@ -90,20 +90,21 @@ def validate_and_use_key(key_string: str, max_retries: int = 3) -> bool:
     If valid, atomically increments usage_count and returns True.
     If invalid or quota exceeded, returns False.
 
-    Uses BEGIN IMMEDIATE to prevent TOCTOU race conditions under concurrent
-    access. Retries with exponential backoff on sqlite3.OperationalError.
-    Key comparison uses hmac.compare_digest to prevent timing-oracle attacks.
+    Accepts raw key string or direct 64-char SHA-256 hash.
+    Uses BEGIN IMMEDIATE to prevent TOCTOU race conditions under concurrent access.
     """
     import time
     if not key_string:
         return False
 
-    candidate_hash = _hash_key(key_string)
+    if len(key_string) == 64 and all(c in "0123456789abcdefABCDEF" for c in key_string):
+        candidate_hash = key_string.lower()
+    else:
+        candidate_hash = _hash_key(key_string)
 
     for attempt in range(max_retries):
         try:
             with sqlite3.connect(DB_PATH, timeout=10) as conn:
-                # IMMEDIATE lock prevents concurrent writes between SELECT and UPDATE
                 conn.execute("BEGIN IMMEDIATE")
                 cursor = conn.cursor()
 
@@ -120,7 +121,6 @@ def validate_and_use_key(key_string: str, max_retries: int = 3) -> bool:
 
                 key_id, usage_count, max_quota, stored_hash = row
 
-                # Timing-safe comparison (defence-in-depth against timing oracles)
                 if not _digest_equal(candidate_hash, stored_hash):
                     logger.warning("Key hash mismatch — possible tampering.")
                     conn.rollback()
@@ -131,7 +131,6 @@ def validate_and_use_key(key_string: str, max_retries: int = 3) -> bool:
                     conn.rollback()
                     return False
 
-                # Valid: Increment usage atomically within the same transaction
                 cursor.execute(
                     "UPDATE api_keys SET usage_count = usage_count + 1 WHERE id = ?",
                     (key_id,)
@@ -157,13 +156,15 @@ def key_exists(key_string: str, max_retries: int = 3) -> bool:
     """
     Read-only check: returns True if the key exists and has remaining quota.
     Does NOT increment usage_count — safe to call on every UI rerender.
-    Retries with backoff on DB lock contention.
     """
     import time
     if not key_string:
         return False
 
-    candidate_hash = _hash_key(key_string)
+    if len(key_string) == 64 and all(c in "0123456789abcdefABCDEF" for c in key_string):
+        candidate_hash = key_string.lower()
+    else:
+        candidate_hash = _hash_key(key_string)
 
     for attempt in range(max_retries):
         try:
