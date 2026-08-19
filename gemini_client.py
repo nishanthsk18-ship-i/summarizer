@@ -77,16 +77,22 @@ def _is_503_error(exc: BaseException) -> bool:
 
 def _is_fallback_candidate_error(exc: BaseException) -> bool:
     """
-    Return True if exc represents a 503 UNAVAILABLE, 404 NOT_FOUND (model discontinued/not found),
+    Return True if exc represents a 503 UNAVAILABLE, 429 RATE_LIMIT, 404 NOT_FOUND,
     400 model deprecated, or high demand error that should trigger fallback to the next model.
     """
     err_str = str(exc).lower()
     code = getattr(exc, "code", None) or getattr(exc, "status_code", None)
-    if code in (404, 503, 500, 502, 504):
+    if code in (404, 429, 500, 502, 503, 504):
         return True
     if isinstance(exc, _genai_errors.ServerError):
         return True
-    if any(k in err_str for k in ("503", "unavailable", "high demand", "not_found", "404", "no longer available", "not found", "is not supported")):
+    if isinstance(exc, httpx.RequestError):
+        return True
+    if any(k in err_str for k in (
+        "503", "unavailable", "high demand", "not_found", "404", "429", "quota",
+        "resource_exhausted", "rate limit", "no longer available", "not found",
+        "is not supported", "overloaded", "capacity"
+    )):
         return True
     return False
 
@@ -250,17 +256,24 @@ class GeminiVideoClient:
     # ------------------------------------------------------------------
 
     def _get_fallback_models(self) -> list[str]:
-        """Return fallback model chain starting with configured model."""
+        """Return fallback model chain starting with configured model, followed by valid Google Gemini models."""
         candidates = [
             self._model,
-            "gemini-2.5-flash",
-            "gemini-1.5-flash",
-            "gemini-2.5-pro",
-            "gemini-1.5-pro",
             "gemini-2.0-flash",
+            "gemini-1.5-flash",
             "gemini-2.0-flash-lite",
+            "gemini-1.5-pro",
         ]
-        return list(dict.fromkeys([m for m in candidates if m]))
+        valid_candidates: list[str] = []
+        for m in candidates:
+            if not m:
+                continue
+            # Normalize legacy/mock model names to valid models
+            if m.startswith("gemini-2.5") or m.startswith("gemini-3."):
+                m = "gemini-2.0-flash"
+            if m not in valid_candidates:
+                valid_candidates.append(m)
+        return valid_candidates
 
 
 
@@ -694,7 +707,7 @@ class GeminiVideoClient:
         fallback_chain = self._get_fallback_models()
         last_exc: Exception | None = None
 
-        for model_name in fallback_chain:
+        for attempt_idx, model_name in enumerate(fallback_chain):
             try:
                 response_stream = self._client.models.generate_content_stream(
                     model=model_name,
@@ -705,38 +718,40 @@ class GeminiVideoClient:
                     ),
                 )
 
+                chunk_received = False
                 for chunk in response_stream:
                     if chunk.text:
+                        chunk_received = True
                         yield chunk.text
 
-                return  # Stream completed successfully
+                if chunk_received:
+                    return  # Stream completed successfully
 
             except Exception as exc:
                 last_exc = exc
-                if _is_quota_error(exc):
-                    raise APIKeyError(
-                        "API quota exceeded. Please wait a minute and try again, "
-                        "or check your API plan."
-                    ) from exc
                 if _is_auth_error(exc):
                     raise APIKeyError(
                         f"API authentication failed (HTTP {getattr(exc, 'code', '?')}). "
-                        "Please check your API key in the .env file."
+                        "Please check your GEMINI_API_KEY in secrets."
                     ) from exc
 
-                if _is_fallback_candidate_error(exc):
-                    logger.warning(
-                        "Model '%s' unavailable (%s). Retrying with fallback model...",
-                        model_name,
-                        exc,
-                    )
-                    continue
-                raise exc
+                logger.warning(
+                    "Model '%s' failed (%s). Retrying with next model in fallback chain...",
+                    model_name,
+                    exc,
+                )
+                time.sleep(1.0 + (attempt_idx * 0.5))
+                continue
 
         if last_exc is not None:
+            if _is_quota_error(last_exc):
+                raise APIKeyError(
+                    "Google Gemini API quota limit reached for your key. "
+                    "Please wait a minute before trying again or use an upgraded API key."
+                ) from last_exc
             raise SummaryGenerationError(
-                "All AI models are currently experiencing high demand or are unavailable. "
-                "Please wait 1-2 minutes and click 'Analyse Media' again."
+                f"Summary generation error ({type(last_exc).__name__}): {last_exc}. "
+                "Please wait a moment and click 'Analyse Media' again."
             ) from last_exc
 
     def _generate_summary(
@@ -754,7 +769,7 @@ class GeminiVideoClient:
         fallback_chain = self._get_fallback_models()
         last_exc: Exception | None = None
 
-        for model_name in fallback_chain:
+        for attempt_idx, model_name in enumerate(fallback_chain):
             try:
                 system_instruction = build_system_prompt(target_language)
                 user_prompt        = build_user_prompt(target_language, source_language, extra_instructions)
@@ -772,40 +787,34 @@ class GeminiVideoClient:
                 )
 
                 text = getattr(response, "text", None)
-                if not text or not text.strip():
-                    raise SummaryGenerationError(
-                        "The AI returned an empty response. "
-                        "The media may be too short, silent, or contain no analysable content."
-                    )
-
-                return text
+                if text and text.strip():
+                    return text
 
             except Exception as exc:
                 last_exc = exc
-                if _is_quota_error(exc):
-                    raise APIKeyError(
-                        "API quota exceeded. Please wait a minute and try again, "
-                        "or check your API plan."
-                    ) from exc
                 if _is_auth_error(exc):
                     raise APIKeyError(
                         f"API authentication failed (HTTP {getattr(exc, 'code', '?')}). "
-                        "Please check your API key in the .env file."
+                        "Please check your GEMINI_API_KEY."
                     ) from exc
 
-                if _is_fallback_candidate_error(exc):
-                    logger.warning(
-                        "Model '%s' unavailable (%s). Retrying with fallback model...",
-                        model_name,
-                        exc,
-                    )
-                    continue
-                raise exc
-
+                logger.warning(
+                    "Model '%s' failed (%s). Retrying with next model in chain...",
+                    model_name,
+                    exc,
+                )
+                time.sleep(1.0 + (attempt_idx * 0.5))
+                continue
 
         if last_exc is not None:
+            if _is_quota_error(last_exc):
+                raise APIKeyError(
+                    "Google Gemini API quota limit reached for your key. "
+                    "Please wait a minute before trying again or use an upgraded API key."
+                ) from last_exc
             raise SummaryGenerationError(
-                "All AI models are currently experiencing high demand. Please wait 1-2 minutes and try again."
+                f"Summary generation error ({type(last_exc).__name__}): {last_exc}. "
+                "Please wait a moment and try again."
             ) from last_exc
         raise SummaryGenerationError("Failed to generate summary: No response received from AI models.")
 
@@ -865,12 +874,15 @@ class GeminiVideoClient:
                         temperature=0.4,
                     ),
                 )
-                return (response.text or "").strip()
+                text = (response.text or "").strip()
+                if text:
+                    return text
             except Exception as exc:
-                if _is_503_error(exc):
-                    logger.warning("Model '%s' returned 503 during Q&A. Retrying with fallback...", model_name)
-                    continue
-                raise exc
+                if _is_auth_error(exc):
+                    raise APIKeyError("API authentication failed. Please check your GEMINI_API_KEY.") from exc
+                logger.warning("Model '%s' error during Q&A (%s). Retrying with fallback...", model_name, exc)
+                time.sleep(1.0)
+                continue
 
         raise SummaryGenerationError("All AI models are currently experiencing high demand. Please try asking again in a moment.")
 

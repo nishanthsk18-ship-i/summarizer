@@ -6,11 +6,10 @@ import streamlit as st
 from config import config, SUPPORTED_LANGUAGES
 
 MODEL_DISPLAY_NAMES: dict[str, str] = {
-    "gemini-2.5-flash":                 "NeuralFlash v2.5  🧠 Ultra Fast & Smart",
-    "gemini-2.5-pro":                   "NeuralPro v2.5    🔬 Deep Reasoning",
-    "gemini-1.5-flash":                 "NeuralFlash v1.5  ⚡ Fast & Reliable",
-    "gemini-1.5-pro":                   "NeuralPro v1.5    📊 Research",
-    "gemini-2.0-flash":                 "NeuralFlash v2.0  ⚖️ Legacy Flash",
+    "gemini-2.0-flash":                 "Gemini 2.0 Flash  ⚡ Ultra Fast & Smart (Default)",
+    "gemini-1.5-flash":                 "Gemini 1.5 Flash  🚀 High-Speed Multimodal",
+    "gemini-1.5-pro":                   "Gemini 1.5 Pro    🔬 Deep Reasoning & Research",
+    "gemini-2.0-flash-lite":            "Gemini 2.0 Lite   🍃 Lightweight & Resilient",
 }
 
 
